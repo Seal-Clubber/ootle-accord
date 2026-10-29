@@ -1,3 +1,5 @@
+> **Legacy v1 reference.** New agreements use [Sapient wallet-authorized review](wallet-review.md). The secret-based HTLC behavior below applies only to old handoffs and recovery files. The new approval component is not deployed and holds no funds.
+
 # Privacy and trust boundaries
 
 OotleAccord aims to keep pledged values and recipient outputs confidential while using native conditional payments. That goal does not make the whole workflow anonymous. **New pledge funding is currently disabled:** the inspected stock Sapient dApp route withdraws a revealed public balance, so it cannot deliver the intended private funding boundary. Existing compatible HTLC claim/refund support is a separate path. See [integration limits](sapient.md).

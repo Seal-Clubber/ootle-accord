@@ -1,5 +1,8 @@
 // Provider contract: chironbuilds/tari-wallet/src/lib/messages.ts and
 // docs/integration/provider-api.md. No keys, view grants, balances, or telemetry.
+import { WALLET_AGREEMENT_SCHEMA, validateAgreement, agreementId } from './accord.mjs';
+import { reviewerKeyFromWallet } from './wallet-address.mjs';
+import { REVIEW_DEPLOYMENTS } from './review-deployments.mjs';
 
 const UINT64_MAX = (1n << 64n) - 1n;
 const RESOURCE = /^resource_[a-f0-9]{64}$/i;
@@ -193,7 +196,7 @@ export function createSapientAdapter({
   function checkNetwork(network) {
     if (network !== expectedNetwork) throw new SapientError(`Switch Sapient to ${expectedNetwork}. Current network: ${String(network)}.`, 'WRONG_NETWORK');
   }
-  async function connection(required = []) {
+  async function connection(required = [], requirePrivateFees = true) {
     await resolveProvider();
     if (!snapshot.account) throw new SapientError('Connect Sapient before requesting a transaction.', 'NOT_CONNECTED');
     const epoch = generation;
@@ -204,7 +207,7 @@ export function createSapientAdapter({
     }
     checkNetwork(network);
     if (!caps || typeof caps !== 'object') throw new SapientError('The wallet returned invalid capabilities.', 'INVALID_RESPONSE');
-    for (const capability of ['transactionRequests', 'supportsPrivateFees', ...required]) {
+    for (const capability of [...(requirePrivateFees ? ['transactionRequests', 'supportsPrivateFees'] : []), ...required]) {
       if (caps[capability] !== true) throw new SapientError(`This wallet account does not support ${capability}. Update Sapient or choose an account supporting private fees.`, 'UNSUPPORTED_CAPABILITY');
     }
     update({ network, capabilities: Object.freeze({ ...caps }) });
@@ -335,6 +338,30 @@ export function createSapientAdapter({
      * private-source options. An unknown `source` property must never be invented here. */
     fundMilestone() {
       throw new SapientError('Stock Sapient funds native HTLCs from revealed balances. Private milestone funding is disabled until the wallet exposes verified private-source support.', 'PRIVATE_ESCROW_UNAVAILABLE');
+    },
+    async getReviewerIdentity() {
+      assertAlive();
+      if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
+      busy = true;
+      try {
+        const epoch = await connection(['walletAddress'], false);
+        const walletAddress = await call('tari_getWalletAddress');
+        checkEpoch(epoch);
+        return Object.freeze({ walletAddress, publicKey: reviewerKeyFromWallet(walletAddress) });
+      } finally { busy = false; }
+    },
+    async approveMilestone({ agreement, stageId, maxFee } = {}, options) {
+      const terms = validateAgreement(agreement);
+      if (terms.schema !== WALLET_AGREEMENT_SCHEMA) throw new SapientError('This agreement uses legacy secret-based review.', 'LEGACY_AGREEMENT');
+      const stage = terms.milestones.find(item => item.id === stageId);
+      if (!stage) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');
+      validateFee(maxFee);
+      const id = await agreementId(terms);
+      const component = REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stageId}`];
+      if (!component) throw new SapientError('The wallet approval contract for this milestone has not been deployed and verified. No approval transaction was created.', 'REVIEW_NOT_DEPLOYED');
+      const identity = await api.getReviewerIdentity();
+      if (identity.publicKey !== stage.reviewer.publicKey) throw new SapientError('Connect the designated reviewer’s Sapient wallet.', 'WRONG_REVIEWER');
+      return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [] } }], ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
     },
     /** Reveals the reviewer preimage to the wallet/indexer and on-chain during the claim. */
     claimMilestone({ resourceAddress, commitment, conditions, preimageHex, maxFee } = {}, options) {

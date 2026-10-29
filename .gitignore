@@ -2,6 +2,7 @@
 dist/
 node_modules/
 coverage/
+target/
 
 # Local credentials, wallet material and confidential exports
 .env

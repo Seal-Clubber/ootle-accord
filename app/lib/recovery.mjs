@@ -88,6 +88,7 @@ function checkNetwork(value, expectedNetwork) {
 async function publicContext(value, { expectedNetwork = 'esmeralda', expectedAgreementId, agreement } = {}) {
   checkNetwork(value.network, expectedNetwork);
   const normalized = validateAgreement(value.agreement);
+  if (normalized.schema !== 'ootleaccord.agreement.v1') fail('This is a legacy HTLC recovery format; wallet-review agreements need a separately qualified escrow recovery format.');
   if (normalized.network !== value.network) fail('Backup and public agreement networks do not match.', 'WRONG_NETWORK');
   const id = await agreementId(normalized);
   if (id !== hex32(value.agreementId, 'Agreement ID')) fail('The public agreement does not match its recorded ID.');

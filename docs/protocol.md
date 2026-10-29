@@ -1,3 +1,5 @@
+> **Legacy v1 reference.** New agreements use [Sapient wallet-authorized review](wallet-review.md). The secret-based HTLC behavior below applies only to old handoffs and recovery files. The new approval component is not deployed and holds no funds.
+
 # OotleAccord protocol
 
 OotleAccord is an original community-funding protocol prototype built around one native Tari HTLC for each donor's pledge to each milestone. It does not deploy a custom Rust template. An agreement describes the project, creator, reviewer, milestones and deadlines; the native output enforces only the particular pledge's claim/refund conditions.

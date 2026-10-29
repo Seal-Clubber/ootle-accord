@@ -1,3 +1,5 @@
+> **Legacy v1 reference.** New agreements use [Sapient wallet-authorized review](wallet-review.md). The secret-based HTLC behavior below applies only to old handoffs and recovery files. The new approval component is not deployed and holds no funds.
+
 # Sapient integration
 
 OotleAccord uses Sapient's injected `window.tari` provider and its create/approve/submit request flow. The target is Esmeralda testnet. It does not request a seed phrase or wallet view secret. Connecting and reading capabilities do not approve a payment; the person approves each proposed spend in Sapient.

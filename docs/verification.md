@@ -1,3 +1,11 @@
+# Wallet-review update
+
+The new v2 flow passed 40 JavaScript tests with one Windows symlink-permission skip. A reviewer address was decoded against an independent Rust Bech32m vector. Tests cover mismatched signer keys, legacy/v2 format separation, account changes and the unverified-deployment request guard. The release WASM build passed with Rust 1.97.1 and Tari template library 0.35.0.
+
+This approval component holds no funds. Engine authorization tests, verified deployment, installed-extension approval and private escrow integration are still outstanding. No live approval or escrow lifecycle is claimed.
+
+The ledger below records the earlier v1 prototype and is historical.
+
 # Verification ledger
 
 Recorded 29 October 2026. This ledger distinguishes implemented application behavior from network evidence.

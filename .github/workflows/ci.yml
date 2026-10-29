@@ -8,6 +8,14 @@ permissions:
   contents: read
 
 jobs:
+  review-template:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust target
+        run: rustup toolchain install 1.97.1 --profile minimal --target wasm32-unknown-unknown
+      - name: Compile authorization template
+        run: cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-review-template --locked
   verify:
     runs-on: ubuntu-latest
     steps:

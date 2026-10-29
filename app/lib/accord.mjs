@@ -1,5 +1,7 @@
 /** Original OotleAccord agreement helpers. Amounts use six decimal places, never floats. */
+import { reviewerKeyFromWallet } from './wallet-address.mjs';
 export const AGREEMENT_SCHEMA = 'ootleaccord.agreement.v1';
+export const WALLET_AGREEMENT_SCHEMA = 'ootleaccord.agreement.v2';
 export const UINT64_MAX = (1n << 64n) - 1n;
 // Protocol-native TARI, six decimals; v1 does not support custom resource divisibilities.
 export const NATIVE_TARI_RESOURCE = `resource_${'01'.repeat(32)}`;
@@ -90,7 +92,9 @@ export function hex32(value, label = '32-byte hex value') {
 
 export function validateAgreement(input) {
   onlyKeys(input, ['schema', 'title', 'description', 'network', 'resourceAddress', 'creatorWalletAddress', 'milestones'], 'Agreement');
-  if (input.schema !== undefined && input.schema !== AGREEMENT_SCHEMA) throw new AccordError('Unsupported agreement version.');
+  const schema = input.schema ?? AGREEMENT_SCHEMA;
+  const walletReview = schema === WALLET_AGREEMENT_SCHEMA;
+  if (![AGREEMENT_SCHEMA, WALLET_AGREEMENT_SCHEMA].includes(schema)) throw new AccordError('Unsupported agreement version.');
   if (input.network !== 'esmeralda') throw new AccordError('This prototype supports the Esmeralda testnet only.', 'WRONG_NETWORK');
   if (typeof input.resourceAddress !== 'string' || !RESOURCE.test(input.resourceAddress)) throw new AccordError('Enter a valid resource address.');
   if (input.resourceAddress.toLowerCase() !== NATIVE_TARI_RESOURCE) throw new AccordError('Agreement v1 supports only native TARI with six decimal places.', 'UNSUPPORTED_RESOURCE');
@@ -103,14 +107,16 @@ export function validateAgreement(input) {
   const ids = new Set();
   const hashes = new Set();
   const milestones = input.milestones.map(stage => {
-    onlyKeys(stage, ['id', 'title', 'description', 'reviewer', 'hashLockHex', 'refundEpoch', 'targetUnits'], 'Milestone');
+    onlyKeys(stage, ['id', 'title', 'description', 'reviewer', 'refundEpoch', 'targetUnits', ...(walletReview ? [] : ['hashLockHex'])], 'Milestone');
     const id = text(stage.id, 'Milestone ID', 1, 40);
     if (!/^[a-z0-9][a-z0-9-]*$/.test(id) || ids.has(id)) throw new AccordError('Use unique lowercase milestone IDs containing letters, digits and hyphens.');
     ids.add(id);
-    onlyKeys(stage.reviewer, ['name', 'role'], 'Reviewer');
-    const hashLockHex = hex32(stage.hashLockHex, 'Reviewer hashlock');
-    if (hashes.has(hashLockHex)) throw new AccordError('Each milestone needs a separate reviewer secret.');
-    hashes.add(hashLockHex);
+    onlyKeys(stage.reviewer, ['name', 'role', ...(walletReview ? ['walletAddress', 'publicKey'] : [])], 'Reviewer');
+    const hashLockHex = walletReview ? null : hex32(stage.hashLockHex, 'Reviewer hashlock');
+    if (!walletReview && hashes.has(hashLockHex)) throw new AccordError('Each milestone needs a separate reviewer secret.');
+    if (!walletReview) hashes.add(hashLockHex);
+    const publicKey = walletReview ? reviewerKeyFromWallet(stage.reviewer.walletAddress) : null;
+    if (walletReview && stage.reviewer.publicKey !== undefined && stage.reviewer.publicKey !== publicKey) throw new AccordError('Reviewer key does not match the wallet address.');
     const normalized = {
       id,
       title: text(stage.title, 'Milestone title', 1, 100),
@@ -118,15 +124,16 @@ export function validateAgreement(input) {
       reviewer: {
         name: text(stage.reviewer.name, 'Reviewer name', 1, 100),
         role: text(stage.reviewer.role ?? 'Independent reviewer', 'Reviewer role', 1, 160),
+        ...(walletReview ? { walletAddress: stage.reviewer.walletAddress, publicKey } : {}),
       },
-      hashLockHex,
+      ...(!walletReview ? { hashLockHex } : {}),
       refundEpoch: validateEpoch(stage.refundEpoch),
     };
     if (stage.targetUnits !== undefined) normalized.targetUnits = rawUnits(stage.targetUnits, 'Milestone target');
     return normalized;
   });
   return deepFreeze({
-    schema: AGREEMENT_SCHEMA,
+    schema,
     title: text(input.title, 'Campaign title', 2, 100),
     description: text(input.description, 'Campaign description', 1, 4000),
     network: input.network,
@@ -167,7 +174,8 @@ export async function sha256Hex(bytes) {
 
 /** Hash of normalized public terms, with an application-specific domain prefix. */
 export async function agreementId(input) {
-  return sha256Hex(new TextEncoder().encode(`${AGREEMENT_SCHEMA}\n${canonicalJson(validateAgreement(input))}`));
+  const agreement = validateAgreement(input);
+  return sha256Hex(new TextEncoder().encode(`${agreement.schema}\n${canonicalJson(agreement)}`));
 }
 
 /** Generate only on the independent reviewer's own device; never share preimage before approval. */

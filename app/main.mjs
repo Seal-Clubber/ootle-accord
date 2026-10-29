@@ -1,6 +1,6 @@
 import {
-  AGREEMENT_SCHEMA, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
-  toRawAmount, fromRawAmount, createReviewerSecret, verifyReviewerSecret,
+  WALLET_AGREEMENT_SCHEMA, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
+  toRawAmount, fromRawAmount, verifyReviewerSecret,
 } from './lib/accord.mjs';
 import {
   decryptRecovery, encryptRecovery, createClaimHandoff, validateClaimHandoff,
@@ -10,7 +10,8 @@ import { createSapientAdapter } from './lib/sapient.mjs';
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const wallet = createSapientAdapter();
-let reviewerSecret = null;
+let reviewerIdentity = null;
+let reviewAgreement = null;
 let recovery = null;
 let stageCounter = 0;
 let feedbackTimer;
@@ -152,7 +153,7 @@ $('#demo-refund').addEventListener('click', event => action(event.currentTarget,
 $('#demo-reset').addEventListener('click', () => { demoEpoch = 1; demoPledges = []; demoApproved.clear(); renderDemo(); notify('Sandbox reset. No real transactions were changed.'); });
 renderDemo();
 
-// Campaign agreements contain public terms only. Reviewer preimages are generated elsewhere.
+// New agreements use reviewer wallet signatures; v1 recovery remains legacy-only.
 $('#resource-address').value = NATIVE_TARI_RESOURCE;
 $('#resource-address').readOnly = true;
 function addDesignerStage(title = '') {
@@ -166,9 +167,14 @@ function addDesignerStage(title = '') {
     <label for="${id}-title">Milestone title</label><input id="${id}-title" data-field="title" required maxlength="100">
     <label for="${id}-description">Deliverable & acceptance criteria</label><textarea id="${id}-description" data-field="description" rows="2" maxlength="2000" required></textarea>
     <div class="form-grid"><div><label for="${id}-reviewer">Independent reviewer</label><input id="${id}-reviewer" data-field="reviewer" required maxlength="100" placeholder="Name or pseudonym"></div><div><label for="${id}-target">Public stage target (TARI)</label><input id="${id}-target" data-field="target" inputmode="decimal" placeholder="Optional planning target"></div></div>
-    <label for="${id}-hash">Reviewer’s public hashlock</label><textarea id="${id}-hash" data-field="hash" rows="2" required minlength="64" maxlength="64" spellcheck="false" placeholder="64 hex characters from the reviewer"></textarea>
+    <label for="${id}-wallet">Reviewer’s Sapient wallet address</label><textarea id="${id}-wallet" data-field="wallet" rows="3" required maxlength="240" spellcheck="false" placeholder="otl_esm_1…"></textarea><button type="button" class="text-button use-reviewer-wallet">Use my connected Sapient wallet</button>
     <label for="${id}-epoch">Refund epoch (chain number)</label><input id="${id}-epoch" data-field="epoch" required inputmode="numeric" maxlength="16" placeholder="Confirm a future epoch on Esmeralda">`;
   article.querySelector('[data-field=title]').value = title;
+  article.querySelector('.use-reviewer-wallet').addEventListener('click', event => action(event.currentTarget, async () => {
+    const identity = await readReviewerIdentity();
+    article.querySelector('[data-field=wallet]').value = identity.walletAddress;
+    notify('Reviewer wallet copied from Sapient. No approval was signed.');
+  }));
   article.querySelector('.remove-stage').addEventListener('click', () => {
     if ($$('.designer-stage').length === 1) return notify('Keep at least one milestone in the agreement.', true);
     article.remove();
@@ -187,46 +193,56 @@ $('#agreement-form').addEventListener('submit', event => {
       const target = value('target');
       return {
         id: article.dataset.id, title: value('title'), description: value('description'),
-        reviewer: { name: value('reviewer'), role: 'Independent reviewer' },
-        hashLockHex: value('hash'), refundEpoch: value('epoch'),
+        reviewer: { name: value('reviewer'), role: 'Independent reviewer', walletAddress: value('wallet') },
+        refundEpoch: value('epoch'),
         ...(target ? { targetUnits: toRawAmount(target) } : {}),
       };
     });
     const agreement = validateAgreement({
-      schema: AGREEMENT_SCHEMA, title: $('#campaign-title').value.trim(), description: $('#campaign-description').value.trim(),
+      schema: WALLET_AGREEMENT_SCHEMA, title: $('#campaign-title').value.trim(), description: $('#campaign-description').value.trim(),
       network: 'esmeralda', resourceAddress: $('#resource-address').value.trim(),
       creatorWalletAddress: $('#creator-address').value.trim(), milestones: stages,
     });
     const id = await agreementId(agreement);
     downloadJson(agreement, `ootleaccord-${id.slice(0, 12)}.json`);
     $('#agreement-output').textContent = `Public agreement exported. Agreement ID: ${id}. Compare this ID with your community before using the terms. No escrow was deployed or funded.`;
-    notify('Public agreement saved. Share the file; keep all reviewer secrets separate.');
+    notify('Public agreement saved. Share the file and confirm each reviewer wallet with its owner.');
   });
 });
 
-$('#generate-secret').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (reviewerSecret) throw new Error('Save and clear the existing secret before generating another. Each milestone needs a separate secret.');
-  reviewerSecret = await createReviewerSecret();
-  $('#reviewer-hash').value = reviewerSecret.hashLockHex;
-  $('#secret-result').hidden = false;
-  notify('Reviewer secret generated locally. Share only the hashlock; save your private reviewer file.');
+async function readReviewerIdentity() {
+  if (!wallet.getState().account) await wallet.connect();
+  reviewerIdentity = await wallet.getReviewerIdentity();
+  $('#reviewer-wallet').value = reviewerIdentity.walletAddress;
+  $('#reviewer-identity').hidden = false;
+  return reviewerIdentity;
+}
+$('#reviewer-connect').addEventListener('click', event => action(event.currentTarget, async () => {
+  await readReviewerIdentity();
+  notify('Reviewer address read from Sapient. No secrets were generated and no approval was signed.');
 }));
-$('#copy-hash').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (!reviewerSecret) return;
-  if (!navigator.clipboard?.writeText) throw new Error('Clipboard access is unavailable. Select and copy the public hashlock from the field.');
-  await navigator.clipboard.writeText(reviewerSecret.hashLockHex);
-  notify('Public hashlock copied. The secret was not copied.');
+$('#copy-reviewer-wallet').addEventListener('click', event => action(event.currentTarget, async () => {
+  if (!reviewerIdentity) throw new Error('Connect the reviewer wallet first.');
+  await navigator.clipboard.writeText(reviewerIdentity.walletAddress);
+  notify('Public reviewer wallet address copied.');
 }));
-$('#download-secret').addEventListener('click', () => {
-  if (!reviewerSecret) return;
-  downloadJson({ schema: 'ootleaccord.reviewer-secret.v1', ...reviewerSecret }, `reviewer-${reviewerSecret.hashLockHex.slice(0, 12)}.accord-secret.json`);
-  notify('Private reviewer file saved. Keep it offline and release the secret only after approval.');
-});
-$('#forget-secret').addEventListener('click', () => {
-  reviewerSecret = null;
-  $('#reviewer-hash').value = '';
-  $('#secret-result').hidden = true;
-  notify('Reviewer secret cleared from this page. Retain your saved file.');
+$('#review-agreement').addEventListener('change', event => action(null, async () => {
+  reviewAgreement = null;
+  $('#review-stage').replaceChildren(new Option('Import an agreement first', ''));
+  $('#review-output').textContent = '';
+  const agreement = validateAgreement(await readJson(event.target.files[0]));
+  if (agreement.schema !== WALLET_AGREEMENT_SCHEMA) throw new Error('This is a legacy secret-based agreement. Import a v2 wallet-review agreement.');
+  reviewAgreement = agreement;
+  $('#review-stage').replaceChildren(...agreement.milestones.map(stage => new Option(stage.title, stage.id)));
+  $('#review-output').textContent = 'Agreement: ' + agreement.title + '. ID: ' + await agreementId(agreement) + '. Compare these terms with the community before approval.';
+}));
+$('#review-form').addEventListener('submit', event => {
+  event.preventDefault();
+  action(event.submitter, async () => {
+    if (!reviewAgreement) throw new Error('Import a wallet-review agreement first.');
+    const result = await wallet.approveMilestone({ agreement: reviewAgreement, stageId: $('#review-stage').value, maxFee: toRawAmount($('#review-fee').value.trim()) });
+    walletSubmission(result, $('#review-output'));
+  });
 });
 
 function requireConnected() {
@@ -330,6 +346,7 @@ $('#wallet-disconnect').addEventListener('click', event => action(event.currentT
 $('#wallet-resume').addEventListener('click', event => action(event.currentTarget, async () => walletSubmission(await wallet.resumePending())));
 wallet.subscribe(state => {
   const connected = Boolean(state.account);
+  if (!connected) { reviewerIdentity = null; $('#reviewer-wallet').value = ''; $('#reviewer-identity').hidden = true; }
   $('#wallet-open').textContent = connected ? 'Sapient connected ↗' : 'Connect Sapient ↗';
   $('#wallet-connect').hidden = connected;
   $('#wallet-disconnect').hidden = !connected;
@@ -361,10 +378,10 @@ $('#wallet-forget').addEventListener('click', event => action(event.currentTarge
 wallet.subscribe(state => { reconcile.hidden = !state.requestId; });
 
 window.addEventListener('pagehide', () => {
-  reviewerSecret = null;
+  reviewerIdentity = null;
   recovery = null;
-  $('#reviewer-hash').value = '';
-  $('#secret-result').hidden = true;
+  $('#reviewer-wallet').value = '';
+  $('#reviewer-identity').hidden = true;
   $('#claim-secret').value = '';
   clearRecovery({ announce: false });
 });
