@@ -30,5 +30,5 @@ for (const match of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
   if (!(await stat(path)).isFile()) throw new Error(`Missing page asset: ${reference}`);
 }
 if (/\son[a-z]+\s*=/i.test(html)) throw new Error('Use module event listeners instead of inline handlers.');
-if (!html.includes('OotleAccord') || !html.includes('id="demo-pledge-form"')) throw new Error('The application entry is incomplete.');
+if (!html.includes('OotleAccord') || !html.includes('id="explore-open-accord"')) throw new Error('The application entry is incomplete.');
 process.stdout.write(`Checked JavaScript syntax and ${Array.from(html.matchAll(/(?:src|href)="([^"#]+)"/g)).length} page references.\n`);

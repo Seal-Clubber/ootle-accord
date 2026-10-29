@@ -1,10 +1,7 @@
 import {
   QUORUM_AGREEMENT_SCHEMA, requiredApprovals, sha256Hex, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
-  toRawAmount, fromRawAmount,
+  toRawAmount,
 } from './lib/accord.mjs';
-import {
-  decryptRecovery, encryptRecovery, createClaimHandoff,
-} from './lib/recovery.mjs';
 import { createSapientAdapter } from './lib/sapient.mjs';
 import { TESTNET_DEMO } from './lib/testnet-demo.mjs';
 
@@ -13,7 +10,6 @@ const $$ = selector => [...document.querySelectorAll(selector)];
 const wallet = createSapientAdapter();
 let reviewerIdentity = null;
 let reviewAgreement = null;
-let recovery = null;
 let stageCounter = 0;
 let reviewerCounter = 0;
 let submissionHash = null;
@@ -37,7 +33,7 @@ async function action(button, work) {
 }
 
 function showView(name, { focus = true } = {}) {
-  const names = ['explore', 'create', 'review', 'recover'];
+  const names = ['explore', 'create', 'review'];
   if (!names.includes(name)) name = 'explore';
   for (const section of $$('.view')) section.hidden = section.id !== `view-${name}`;
   for (const item of $$('.nav-item')) {
@@ -90,82 +86,7 @@ $('#explore-approvals').textContent = `${TESTNET_DEMO.recordedApprovals} of ${de
 $('#explore-checkpoint').textContent = `Deployment verified. Approvals shown are the recorded checkpoint at chain epoch ${TESTNET_DEMO.recordedEpoch}, not a live vote count.`;
 $('#explore-component').textContent = TESTNET_DEMO.component;
 
-// The demonstration is deliberately separate from the protocol/wallet code. It has no network
-// calls, real commitments, keys or exportable funding records; every amount lives in memory.
-const demoStages = [
-  { id: 'discovery', title: 'Research & plan', description: 'Agree on the scope, interview community organizers, and publish a practical plan.', target: '7200', reviewer: 'Community reviewer', refundEpoch: 24 },
-  { id: 'build', title: 'Build the toolkit', description: 'Deliver the guides, templates, and a documented open-source release.', target: '9600', reviewer: 'Technical reviewer', refundEpoch: 48 },
-  { id: 'review', title: 'Independent review', description: 'Review accessibility, test the materials, and publish the findings.', target: '7200', reviewer: 'Independent reviewer', refundEpoch: 72 },
-];
-let demoEpoch = 1;
-let demoPledges = [];
-const demoApproved = new Set();
-function selectedDemoStage() { return demoStages.find(stage => stage.id === $('#demo-stage').value); }
-function renderDemo() {
-  $('#demo-epoch').textContent = String(demoEpoch);
-  $('#demo-stages').replaceChildren(...demoStages.map((stage, index) => {
-    const row = textElement('div', '', 'milestone');
-    const body = textElement('div', '', 'milestone-body');
-    body.append(textElement('h3', stage.title), textElement('p', stage.description));
-    const released = demoApproved.has(stage.id);
-    const expired = demoEpoch >= stage.refundEpoch;
-    body.append(textElement('span', `${stage.reviewer} · refund epoch ${stage.refundEpoch} · ${released ? 'claimed in sandbox' : expired ? 'refund window open' : 'awaiting review'}`, 'milestone-status'));
-    row.append(textElement('span', String(index + 1).padStart(2, '0'), 'milestone-number'), body, textElement('span', `${Number(stage.target).toLocaleString('en-US')} TARI`, 'milestone-budget'));
-    return row;
-  }));
-  const stage = selectedDemoStage();
-  const entries = demoPledges.filter(pledge => pledge.stageId === stage.id);
-  const total = entries.reduce((amount, pledge) => amount + BigInt(pledge.amount), 0n);
-  const state = demoApproved.has(stage.id) ? 'claimed by the creator' : entries.every(pledge => pledge.status === 'refunded') ? 'refunded to you' : 'locked for this milestone';
-  $('#demo-receipt').textContent = entries.length ? `Only on this device: ${fromRawAmount(total.toString())} TARI across ${entries.length} simulated pledge${entries.length === 1 ? '' : 's'}, ${state}. This local receipt is not a real recovery file.` : 'Your simulated pledge will appear here. Individual amounts stay off the campaign display.';
-}
-$('#demo-pledge-form').addEventListener('submit', event => {
-  event.preventDefault();
-  action(event.submitter, () => {
-    const stage = selectedDemoStage();
-    if (demoEpoch >= stage.refundEpoch) throw new Error('This milestone is past its simulated claim deadline. Reset the sandbox to explore a new pledge.');
-    if (demoApproved.has(stage.id)) throw new Error('This milestone has already been claimed in the sandbox. Choose another stage or reset it.');
-    const amount = toRawAmount($('#demo-amount').value.trim());
-    demoPledges.push({ stageId: stage.id, amount, status: 'locked' });
-    renderDemo();
-    notify(`Simulated ${fromRawAmount(amount)} TARI locked for “${stage.title}”. No funds moved.`);
-  });
-});
-$('#demo-stage').addEventListener('change', renderDemo);
-$$('[data-amount]').forEach(button => button.addEventListener('click', () => {
-  $('#demo-amount').value = button.dataset.amount;
-  $$('[data-amount]').forEach(item => item.classList.toggle('selected', item === button));
-}));
-$('#demo-amount').addEventListener('input', () => $$('[data-amount]').forEach(item => item.classList.toggle('selected', item.dataset.amount === $('#demo-amount').value)));
-$('#demo-approve').addEventListener('click', event => action(event.currentTarget, () => {
-  const stage = selectedDemoStage();
-  if (demoEpoch >= stage.refundEpoch) throw new Error('Approval is too late: the simulated claim window has closed. Eligible pledges can be refunded.');
-  const locked = demoPledges.filter(pledge => pledge.stageId === stage.id && pledge.status === 'locked');
-  if (!locked.length) throw new Error('Simulate a pledge for this milestone first.');
-  demoApproved.add(stage.id);
-  locked.forEach(pledge => { pledge.status = 'claimed'; });
-  renderDemo();
-  notify('Reviewer approval and creator claim simulated. Already claimed funds cannot be refunded.');
-}));
-$('#demo-expire').addEventListener('click', () => {
-  const stage = selectedDemoStage();
-  demoEpoch = Math.max(demoEpoch, stage.refundEpoch);
-  renderDemo();
-  notify(`Simulated epoch ${demoEpoch}. Unclaimed pledges for this milestone are now eligible for refund.`);
-});
-$('#demo-refund').addEventListener('click', event => action(event.currentTarget, () => {
-  const stage = selectedDemoStage();
-  if (demoEpoch < stage.refundEpoch) throw new Error(`Refunds are not eligible yet. This milestone’s simulated refund epoch is ${stage.refundEpoch}.`);
-  const eligible = demoPledges.filter(pledge => pledge.stageId === stage.id && pledge.status === 'locked');
-  if (!eligible.length) throw new Error('There are no eligible unpaid pledges for this milestone. Claimed funds cannot be refunded.');
-  eligible.forEach(pledge => { pledge.status = 'refunded'; });
-  renderDemo();
-  notify('Eligible local pledges refunded in the sandbox. No creator or reviewer permission was needed.');
-}));
-$('#demo-reset').addEventListener('click', () => { demoEpoch = 1; demoPledges = []; demoApproved.clear(); renderDemo(); notify('Sandbox reset. No real transactions were changed.'); });
-renderDemo();
-
-// New agreements use reviewer wallet signatures; v1 recovery remains legacy-only.
+// Agreements use reviewer wallet signatures.
 $('#resource-address').value = NATIVE_TARI_RESOURCE;
 $('#resource-address').readOnly = true;
 function addDesignerStage(title = '') {
@@ -181,7 +102,7 @@ function addDesignerStage(title = '') {
     <label for="${id}-target">Public stage target (TARI)</label><input id="${id}-target" data-field="target" inputmode="decimal" placeholder="Optional planning target">
     <div data-reviewers></div><button type="button" class="text-button add-reviewer">＋ Add reviewer</button>
     <label for="${id}-percent">Approval required (%)</label><input id="${id}-percent" data-field="percent" type="number" min="1" max="100" step="1" value="60" required><p class="field-help quorum-preview"></p>
-    <label for="${id}-epoch">Refund epoch (chain number)</label><input id="${id}-epoch" data-field="epoch" required inputmode="numeric" maxlength="16" placeholder="Confirm a future epoch on Esmeralda">`;
+    <label for="${id}-epoch">Review deadline (chain epoch)</label><input id="${id}-epoch" data-field="epoch" required inputmode="numeric" maxlength="16" placeholder="Future Esmeralda epoch">`;
   article.querySelector('[data-field=title]').value = title;
   function updateQuorum() {
     try { const count = article.querySelectorAll('[data-reviewer]').length; const percent = Number(article.querySelector('[data-field=percent]').value); article.querySelector('.quorum-preview').textContent = requiredApprovals(count, percent) + ' of ' + count + ' designated reviewers must approve the same work. Non-voters remain in the denominator.'; }
@@ -206,8 +127,8 @@ function addDesignerStage(title = '') {
   $('#designer-stages').append(article);
 }
 $('#add-stage').addEventListener('click', () => addDesignerStage());
-addDesignerStage('Build & deliver');
-addDesignerStage('Independent review');
+addDesignerStage('Delivery');
+
 $('#agreement-form').addEventListener('submit', event => {
   event.preventDefault();
   action(event.submitter, async () => {
@@ -229,7 +150,7 @@ $('#agreement-form').addEventListener('submit', event => {
     });
     const id = await agreementId(agreement);
     downloadJson(agreement, `ootleaccord-${id.slice(0, 12)}.json`);
-    $('#agreement-output').textContent = `Public agreement exported. Agreement ID: ${id}. Compare this ID with your community before using the terms. No escrow was deployed or funded.`;
+    $('#agreement-output').textContent = `Agreement saved. ID: ${id}. No contract was deployed or funded.`;
     notify('Public agreement saved. Share the file and confirm each reviewer wallet with its owner.');
   });
 });
@@ -243,7 +164,7 @@ async function readReviewerIdentity() {
 }
 $('#reviewer-connect').addEventListener('click', event => action(event.currentTarget, async () => {
   await readReviewerIdentity();
-  notify('Reviewer address read from Sapient. No secrets were generated and no approval was signed.');
+  notify('Public reviewer address read from Sapient.');
 }));
 $('#copy-reviewer-wallet').addEventListener('click', event => action(event.currentTarget, async () => {
   if (!reviewerIdentity) throw new Error('Connect the reviewer wallet first.');
@@ -253,6 +174,11 @@ $('#copy-reviewer-wallet').addEventListener('click', event => action(event.curre
 $('#review-agreement').addEventListener('change', event => action(null, async () => {
   reviewAgreement = null;
   submissionHash = null;
+  $('#approve-review').disabled = true;
+  $('#review-heading').textContent = 'Choose an agreement';
+  $('#review-contract').textContent = '';
+  $('#review-agreement-id').textContent = '';
+  $('#load-testnet-demo').hidden = false;
   $('#review-work').value = '';
   $('#work-fingerprint').textContent = '';
   $('#review-terms').replaceChildren();
@@ -263,18 +189,27 @@ $('#review-agreement').addEventListener('change', event => action(null, async ()
   if (agreement.schema !== QUORUM_AGREEMENT_SCHEMA) throw new Error('Import a v3 percentage-quorum agreement.');
   reviewAgreement = agreement;
   $('#review-stage').replaceChildren(...agreement.milestones.map(stage => new Option(stage.title, stage.id)));
-  $('#review-output').textContent = 'Agreement: ' + agreement.title + '. ID: ' + await agreementId(agreement) + '. Compare these terms with the community before approval.';
+  $('#review-heading').textContent = agreement.title;
+  $('#review-agreement-id').textContent = await agreementId(agreement);
+  $('#review-output').textContent = 'Choose the work file to review.';
   renderReviewTerms();
 }));
 function renderReviewTerms() {
   const stage = reviewAgreement?.milestones.find(s => s.id === $('#review-stage').value);
   if (!stage) return $('#review-terms').replaceChildren();
   const list = document.createElement('ol');
-  for (const reviewer of stage.reviewers) list.append(textElement('li', `${reviewer.name}: ${reviewer.walletAddress}`));
-  $('#review-terms').replaceChildren(textElement('p', `${requiredApprovals(stage.reviewers.length, stage.approvalPercent)} of ${stage.reviewers.length} approvals required (${stage.approvalPercent}%). Deadline: before chain epoch ${stage.refundEpoch}.`), textElement('p', stage.description), list);
+  for (const reviewer of stage.reviewers) {
+    const item = textElement('li', reviewer.name);
+    item.append(textElement('code', reviewer.walletAddress));
+    list.append(item);
+  }
+  const reviewers = document.createElement('details');
+  reviewers.append(textElement('summary', `${stage.reviewers.length} reviewers`), list);
+  $('#review-terms').replaceChildren(textElement('p', `${requiredApprovals(stage.reviewers.length, stage.approvalPercent)} of ${stage.reviewers.length} approvals required · ${stage.approvalPercent}%`), textElement('p', stage.title), textElement('p', stage.description, 'field-help'), textElement('p', `Review before chain epoch ${stage.refundEpoch}.`, 'field-help'), reviewers);
 }
 $('#review-stage').addEventListener('change', renderReviewTerms);
 async function loadTestnetDemo() {
+  $('#approve-review').disabled = true;
   reviewAgreement = validateAgreement(TESTNET_DEMO.agreement);
   if (await agreementId(reviewAgreement) !== TESTNET_DEMO.agreementId) throw new Error('Demo agreement identity mismatch.');
   $('#review-agreement').value = '';
@@ -286,9 +221,13 @@ async function loadTestnetDemo() {
   $('#demo-work-text').textContent = TESTNET_DEMO.work;
   $('#demo-work-details').hidden = false;
   $('#demo-work-details').open = true;
-  $('#review-output').textContent = `Recorded checkpoint: 2 of 3 required approvals at epoch ${TESTNET_DEMO.recordedEpoch}. This is not a live status feed. Agreement: ${TESTNET_DEMO.agreementId}. Component: ${TESTNET_DEMO.component}. Review the work below, then connect your designated Sapient wallet to approve.`;
+  $('#review-heading').textContent = reviewAgreement.title;
+  $('#load-testnet-demo').hidden = true;
+  $('#review-contract').textContent = TESTNET_DEMO.component;
+  $('#review-agreement-id').textContent = TESTNET_DEMO.agreementId;
+  $('#review-output').textContent = `${TESTNET_DEMO.recordedApprovals} of ${deployedRequired} required approvals recorded at epoch ${TESTNET_DEMO.recordedEpoch}. This is a saved checkpoint, not live status.`;
+  $('#approve-review').disabled = false;
   renderReviewTerms();
-  notify('Public demo and its work loaded locally. Review the terms and work before approving.');
 }
 $('#load-testnet-demo').addEventListener('click', event => action(event.currentTarget, loadTestnetDemo));
 $('#explore-open-accord').addEventListener('click', event => action(event.currentTarget, async () => {
@@ -306,6 +245,7 @@ $('#review-form').addEventListener('submit', event => {
   action(event.submitter, async () => {
     if (!reviewAgreement) throw new Error('Import a wallet-review agreement first.');
     if (!submissionHash) throw new Error('Choose the work file that the creator submitted.');
+    if (!wallet.getState().account) await wallet.connect();
     const result = await wallet.approveMilestone({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
     walletSubmission(result, $('#review-output'));
   });
@@ -313,10 +253,13 @@ $('#review-form').addEventListener('submit', event => {
 
 $('#review-work').addEventListener('change', event => action(null, async () => {
   submissionHash = null; $('#work-fingerprint').textContent = '';
+  $('#approve-review').disabled = true;
+  $('#demo-work-details').hidden = true;
   const file = event.target.files[0];
   if (!file || file.size > 10 * 1024 * 1024) throw new Error('Choose a work file up to 10 MB.');
   submissionHash = await sha256Hex(await file.arrayBuffer());
   $('#work-fingerprint').textContent = 'Work fingerprint: ' + submissionHash + '. The file stays on this device.';
+  $('#approve-review').disabled = !reviewAgreement;
 }));
 $('#submit-work').addEventListener('click', event => action(event.currentTarget, async () => {
   if (!reviewAgreement || !submissionHash) throw new Error('Import an agreement and choose its work file first.');
@@ -324,74 +267,11 @@ $('#submit-work').addEventListener('click', event => action(event.currentTarget,
   walletSubmission(result, $('#review-output'));
 }));
 
-function requireConnected() {
-  if (!wallet.getState().account) {
-    $('#wallet-dialog').showModal();
-    throw new Error('Connect the appropriate Sapient wallet first, then request the action again.');
-  }
-}
 function walletSubmission(result, output) {
   const message = `Wallet reports submission: ${result.transactionId}. This page has not independently verified chain acceptance. Check the transaction in Sapient.`;
   if (output) output.textContent = message;
   notify(message);
 }
-function clearRecovery({ announce = true } = {}) {
-  recovery = null;
-  $('#recovery-result').hidden = true;
-  $('#recovery-name').textContent = '';
-  $('#recovery-facts').replaceChildren();
-  $('#recovery-password').value = '';
-  $('#new-password').value = '';
-  $('#recovery-file').value = '';
-  if (announce) notify('Recovery file locked and cleared from this page.');
-}
-$('#recovery-form').addEventListener('submit', event => {
-  event.preventDefault();
-  action(event.submitter, async () => {
-    recovery = null;
-    $('#recovery-result').hidden = true;
-    try {
-      recovery = await decryptRecovery(await readJson($('#recovery-file').files[0]), $('#recovery-password').value);
-    } finally { $('#recovery-password').value = ''; }
-    const stage = recovery.agreement.milestones.find(item => item.id === recovery.stageId);
-    $('#recovery-name').textContent = recovery.agreement.title;
-    const facts = [
-      ['Milestone', stage.title], ['Private amount', `${fromRawAmount(recovery.amount)} TARI`],
-      ['Refund epoch', stage.refundEpoch], ['Network', recovery.network],
-      ['Agreement ID', recovery.agreementId], ['Locked commitment', recovery.commitment],
-      ['Recorded status', 'Wallet-submitted · chain acceptance not verified'],
-    ];
-    $('#recovery-facts').replaceChildren(...facts.flatMap(([label, value]) => [textElement('dt', label), textElement('dd', value)]));
-    $('#recovery-result').hidden = false;
-    notify('Recovery decrypted locally. Its contents have not been checked against the chain.');
-  });
-});
-$('#lock-recovery').addEventListener('click', () => clearRecovery());
-$('#request-refund').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (!recovery) throw new Error('Open your encrypted recovery file first.');
-  requireConnected();
-  const maxFee = toRawAmount($('#refund-fee').value.trim());
-  const result = await wallet.refundMilestone({
-    resourceAddress: recovery.agreement.resourceAddress, commitment: recovery.commitment,
-    conditions: recovery.conditions, amount: recovery.amount, outputMask: recovery.outputMask, maxFee,
-  });
-  walletSubmission(result);
-}));
-$('#export-handoff').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (!recovery) throw new Error('Open a recovery file first.');
-  const handoff = await createClaimHandoff(recovery);
-  downloadJson(handoff, `ootleaccord-${recovery.commitment.slice(0, 12)}.claim.json`);
-  notify('Creator handoff saved without your refund mask or amount field. Deliver it privately; its conditions still reveal keys.');
-}));
-$('#reencrypt-backup').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (!recovery) throw new Error('Open a recovery file first.');
-  const password = $('#new-password').value;
-  $('#new-password').value = '';
-  const envelope = await encryptRecovery(recovery, password);
-  downloadJson(envelope, `ootleaccord-${recovery.commitment.slice(0, 12)}.accord-vault.json`);
-  notify('Recovery encrypted with a fresh salt and IV. Retain your password separately.');
-}));
-
 // Wallet actions never run on page load. No balance/view-access request is made.
 $('#wallet-open').addEventListener('click', () => $('#wallet-dialog').showModal());
 $('#wallet-close').addEventListener('click', () => $('#wallet-dialog').close());
@@ -407,7 +287,7 @@ $('#wallet-resume').addEventListener('click', event => action(event.currentTarge
 wallet.subscribe(state => {
   const connected = Boolean(state.account);
   if (!connected) { reviewerIdentity = null; $('#reviewer-wallet').value = ''; $('#reviewer-identity').hidden = true; }
-  $('#wallet-open').textContent = connected ? 'Sapient connected ↗' : 'Connect Sapient ↗';
+  $('#wallet-open').textContent = connected ? 'Sapient connected' : 'Connect Sapient';
   $('#wallet-connect').hidden = connected;
   $('#wallet-disconnect').hidden = !connected;
   $('#wallet-resume').hidden = !state.requestId;
@@ -416,9 +296,8 @@ wallet.subscribe(state => {
     `Network: ${state.network}`, `Status: ${state.status}`,
     `Account: ${state.account}`,
     `Private fees: ${caps?.supportsPrivateFees ? 'supported' : 'unavailable'}`,
-    `Native claim/refund: ${caps?.scriptPathSpend ? 'supported by wallet' : 'unavailable'}`,
-    'Private escrow funding: disabled (stock provider limitation)',
-  ] : [`Status: ${state.status}`, 'Connecting is optional for the sandbox and agreement tools.'];
+    'Private funding: unavailable',
+  ] : [`Status: ${state.status}`, 'Connect to submit work or approve.'];
   if (state.requestId) lines.push(`Existing request: ${state.requestId}`);
   if (state.error) lines.push(state.error);
   $('#wallet-info').textContent = lines.join('\n');
@@ -439,8 +318,6 @@ wallet.subscribe(state => { reconcile.hidden = !state.requestId; });
 
 window.addEventListener('pagehide', () => {
   reviewerIdentity = null;
-  recovery = null;
   $('#reviewer-wallet').value = '';
   $('#reviewer-identity').hidden = true;
-  clearRecovery({ announce: false });
 });

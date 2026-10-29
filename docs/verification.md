@@ -1,3 +1,7 @@
+## Simplified app interface
+
+The current interface has Accords, Create and Review tabs. The marketing layout, local sandbox and legacy recovery screen were removed. Earlier browser evidence for those removed screens below is historical. The deployed agreement remains reachable directly from Accords.
+
 # Percentage-quorum update — 30 October 2026
 
 48 JavaScript tests passed, one Windows symlink-permission skip, no failures. Five real Tari-engine tests passed in Ubuntu: 3-of-5 gating, rounding/unanimity, forged and duplicate votes, work mismatch/change, deadlines and invalid reviewer/threshold configurations. The template and immutable component terms were verified against actual committed Esmeralda receipts. Creator work and two reviewer approvals committed. See [deployment details and fee ledger](testnet-deployment.md).

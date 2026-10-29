@@ -6,10 +6,10 @@ Five immutable reviewers at 60% require **three approvals**. Four reviewers are 
 
 ## Try it
 
-1. Open Review & approve and choose **Load testnet demo**.
+1. Open **Accords** and choose **Open accord** on the deployed demonstration. Alternatively, open Review and choose Open testnet accord.
 2. Read the public terms, reviewer list and bundled work. Download either file if needed.
 3. Connect the designated community reviewer's Sapient wallet on Esmeralda. Its address begins `otl_esm_1vfh5ht7k`, owner key ends `a1f3d902`.
-4. Choose **Approve milestone in Sapient**. Inspect `approve(2, work fingerprint)` against the component below. Private fees are required; there is no public-fee fallback.
+4. Choose **Approve in Sapient**. Inspect `approve(2, work fingerprint)` against the component below. Private fees are required; there is no public-fee fallback.
 5. Check acceptance in Sapient. Submission alone does not establish chain commitment. The website's checkpoint does not update automatically.
 
 Approvals must precede chain epoch **14000**. Each reviewer votes once on the same creator-submitted work. The first vote fixes the work; threshold completion is final. Non-voters count toward the denominator. There is no negative vote, vote withdrawal, reviewer replacement, weighting, stage-order or work-quality enforcement.

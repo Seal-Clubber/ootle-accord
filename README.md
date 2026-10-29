@@ -18,20 +18,19 @@ node app/server.mjs
 
 Open [http://127.0.0.1:4173/](http://127.0.0.1:4173/). The local server binds only to your computer. Set `PORT` if 4173 is already in use.
 
-The application includes:
+The interface has three tabs:
 
-- A local sandbox demonstrating milestone pledges, reviewer release and deadline refunds. Sandbox actions never contact a wallet or move funds.
-- A public agreement designer with fixed recipient, milestone acceptance terms, distinct reviewer wallet addresses, approval percentages and chain refund epochs.
-- Reviewer identity read directly from Sapient, with no manual release-secret generation for new agreements.
-- A Sapient connection with runtime network and capability checks. It requests no private balance or view access.
-- Explicit refund requests for compatible existing HTLC records, with private fees required. These paths still need an installed supporting extension, the original material and network validation.
-- Encrypted recovery helpers using PBKDF2-SHA256 and AES-256-GCM. A private creator handoff omits the donor's amount and refund mask.
+- **Accords:** the deployed Esmeralda review agreement, its threshold and recorded checkpoint.
+- **Create:** milestone terms, reviewer wallets and approval percentages; saves a public agreement file.
+- **Review:** the work and acceptance terms, with Sapient submission and approval.
+
+The landing-page sections, simulated funding sandbox and legacy recovery screen have been removed. Cryptographic recovery helpers remain in the library for compatibility, with no recovery UI. The app requests no balances or private view access. It performs no background indexer requests; displayed votes are explicitly labeled as a recorded checkpoint.
 
 ## Funding model and limits
 
 New v3 agreements fix up to ten Sapient reviewer keys and a percentage per milestone. The creator submits a work fingerprint, and reviewers sign approvals for that same work. Votes required round up against all designated reviewers. The quorum template and a 3-of-5 example are deployed on Esmeralda, with two committed test approvals awaiting the community reviewer. This component holds no funds; private escrow remains unfinished. See [wallet review](docs/wallet-review.md) and [deployment receipts](docs/testnet-deployment.md).
 
-Legacy v1 HTLC handoffs and encrypted recovery files remain readable. Their hashlocks are unchanged and cannot be upgraded by this website. The website no longer offers the old secret-based claim flow. There is no campaign-wide goal, stage-order or work-quality enforcement. Quorum applies to review authorization only.
+Legacy v1 HTLC handoffs and encrypted recovery files remain readable. Their hashlocks are unchanged and cannot be upgraded by this website. The app no longer offers legacy claim or recovery screens. There is no campaign-wide goal, stage-order or work-quality enforcement. Quorum applies to review authorization only.
 
 This version supports native TARI on Esmeralda and six decimal places. Refund deadlines are chain epochs, not calendar timestamps. A wallet seed alone is insufficient for this recovery format: retain the encrypted backup, its password, the original funding wallet and fee funds.
 
