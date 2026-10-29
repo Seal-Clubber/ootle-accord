@@ -1,9 +1,9 @@
 import {
   WALLET_AGREEMENT_SCHEMA, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
-  toRawAmount, fromRawAmount, verifyReviewerSecret,
+  toRawAmount, fromRawAmount,
 } from './lib/accord.mjs';
 import {
-  decryptRecovery, encryptRecovery, createClaimHandoff, validateClaimHandoff,
+  decryptRecovery, encryptRecovery, createClaimHandoff,
 } from './lib/recovery.mjs';
 import { createSapientAdapter } from './lib/sapient.mjs';
 
@@ -256,25 +256,6 @@ function walletSubmission(result, output) {
   if (output) output.textContent = message;
   notify(message);
 }
-$('#claim-form').addEventListener('submit', event => {
-  event.preventDefault();
-  action(event.submitter, async () => {
-    $('#claim-output').textContent = '';
-    const handoff = await validateClaimHandoff(await readJson($('#claim-file').files[0]));
-    const stage = handoff.agreement.milestones.find(item => item.id === handoff.stageId);
-    const preimageHex = $('#claim-secret').value.trim();
-    if (!await verifyReviewerSecret(preimageHex, stage.hashLockHex)) throw new Error('This reviewer secret does not match the milestone’s public hashlock.');
-    const maxFee = toRawAmount($('#claim-fee').value.trim());
-    requireConnected();
-    const result = await wallet.claimMilestone({
-      resourceAddress: handoff.agreement.resourceAddress, commitment: handoff.commitment,
-      conditions: handoff.conditions, preimageHex, maxFee,
-    });
-    $('#claim-secret').value = '';
-    walletSubmission(result, $('#claim-output'));
-  });
-});
-
 function clearRecovery({ announce = true } = {}) {
   recovery = null;
   $('#recovery-result').hidden = true;
@@ -382,6 +363,5 @@ window.addEventListener('pagehide', () => {
   recovery = null;
   $('#reviewer-wallet').value = '';
   $('#reviewer-identity').hidden = true;
-  $('#claim-secret').value = '';
   clearRecovery({ announce: false });
 });

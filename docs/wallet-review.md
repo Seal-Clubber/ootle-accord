@@ -18,7 +18,7 @@ The template builds for `wasm32-unknown-unknown` with the pinned library. This e
 
 Address decoding is checked against a vector generated independently with Rust `bech32` 0.11.1. It validates Bech32m encoding and the Esmeralda prefix, extracts only the owner public key, and accepts base wallet addresses without payment references. Tari's transaction-signature verification must establish actual control of that key. The parser does not independently validate Ristretto points.
 
-Old v1 agreements and encrypted recovery records remain readable as legacy data. The legacy claim form is inside an explicitly labeled disclosure. Changing a website cannot replace conditions on an existing output. Never relabel a v1 recovery record as v2.
+Old v1 agreements and encrypted recovery records remain readable as legacy data. The old secret-based claim option has been removed from the website. Changing a website cannot replace conditions on an existing output. Never relabel a v1 recovery record as v2.
 
 ## Privacy
 

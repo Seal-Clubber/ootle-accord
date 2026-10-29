@@ -31,7 +31,7 @@ The application includes:
 
 New v2 agreements designate a Sapient reviewer wallet for each milestone. The new accord-review-template component binds immutable agreement and milestone IDs, the reviewer signing key, and a chain deadline. A signed approve() call records approval once. This authorization component holds no funds; escrow integration, engine qualification and deployment remain outstanding. The deployment allowlist is empty, so no live approval transaction is created yet. See [wallet review](docs/wallet-review.md).
 
-Legacy v1 HTLC handoffs and encrypted recovery files remain readable. Their hashlocks are unchanged and cannot be upgraded by this website. Legacy claims are available in an explicitly labeled disclosure. There is no campaign-wide goal, quorum, stage-order or work-quality enforcement.
+Legacy v1 HTLC handoffs and encrypted recovery files remain readable. Their hashlocks are unchanged and cannot be upgraded by this website. The website no longer offers the old secret-based claim flow. There is no campaign-wide goal, quorum, stage-order or work-quality enforcement.
 
 This version supports native TARI on Esmeralda and six decimal places. Refund deadlines are chain epochs, not calendar timestamps. A wallet seed alone is insufficient for this recovery format: retain the encrypted backup, its password, the original funding wallet and fee funds.
 
