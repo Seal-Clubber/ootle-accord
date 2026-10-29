@@ -8,6 +8,8 @@ OotleAccord is an original community-funding prototype for Tari Ootle. Communiti
 
 ## Try it locally
 
+**Website:** [seal-clubber.github.io/ootle-accord](https://seal-clubber.github.io/ootle-accord/)
+
 Install Node.js 22 or newer. There are no package dependencies to install.
 
 ```sh
@@ -48,6 +50,12 @@ node scripts/build.mjs
 The initial local run passed 35 tests with one Windows symlink-permission skip. Browser sandbox, reviewer, export and encrypted-recovery flows were checked. See the [verification ledger](docs/verification.md) for results and outstanding evidence.
 
 `build.mjs` creates a static `dist/` directory with local app assets and documentation. It excludes the preview server, dotfiles and JSON exports. The build does not publish or deploy anything. When hosting, apply the restrictive response policy in [app/server.mjs](app/server.mjs) and verify that the installed wallet can inject its provider under that policy. Assets and fonts are local; the application has no analytics or remote font service.
+
+## GitHub Pages
+
+The `Publish GitHub Pages` workflow tests the code, builds `dist/`, and deploys it on every push to `main`. It can also be started manually from Actions. Repository Settings → Pages uses **GitHub Actions** as the publishing source.
+
+All application assets use relative paths so the project works at `/ootle-accord/`. A page-level content security policy and no-referrer policy travel with the static HTML. GitHub Pages does not reproduce the preview server's custom HTTP headers. Recovery files are decrypted locally; GitHub serves the application files and can observe ordinary visitor connection metadata. Live private funding remains disabled.
 
 ## Repository map
 

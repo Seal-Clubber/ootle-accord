@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readdir, realpath, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { extname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -38,4 +38,5 @@ async function copyTree(source, destination, isDocs = false) {
 }
 await copyTree(resolve(root, 'app'), output);
 await copyTree(resolve(root, 'docs'), resolve(output, 'docs'), true);
+await writeFile(resolve(output, '.nojekyll'), '');
 process.stdout.write(`Built ${copied} static files in dist/. No credentials or recovery files are included.\n`);
