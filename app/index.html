@@ -52,11 +52,10 @@
         <div class="surface form-surface">
           <h2 id="review-heading">Choose an agreement</h2>
           <form id="review-form">
+            <div id="review-stage-picker" hidden><label for="review-stage">Milestone</label><select id="review-stage" required><option value="">Open an accord first</option></select></div>
             <output id="review-output" class="form-output"></output><div id="review-terms"></div>
-            <details id="demo-work-details" hidden><summary>Work to review</summary><pre id="demo-work-text"></pre><div class="inline-actions"><button type="button" id="download-demo-work" class="text-button">Download work</button><button type="button" id="download-demo-agreement" class="text-button">Download agreement</button></div></details>
-            <details><summary>Import files / creator tools</summary>
-              <label for="review-agreement">Agreement JSON</label><input type="file" id="review-agreement" accept=".json,application/json">
-              <label for="review-stage">Milestone</label><select id="review-stage" required><option value="">Choose an agreement first</option></select>
+            <details id="demo-work-details" hidden><summary>Work to review</summary><pre id="demo-work-text"></pre><div class="inline-actions"><button type="button" id="download-demo-work" class="text-button">Download work</button></div></details>
+            <details><summary>Creator: submit work</summary>
               <label for="review-work">Work file</label><input type="file" id="review-work"><p id="work-fingerprint" class="field-help"></p>
               <button type="button" id="submit-work" class="button button-outline">Submit work as creator</button>
               <p class="field-help">Files are hashed on this device. Only the fingerprint is submitted.</p>

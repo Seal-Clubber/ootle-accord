@@ -63,13 +63,6 @@ function downloadJson(value, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function readJson(file, limit = 262144) {
-  if (!file) throw new Error('Choose a JSON file first.');
-  if (file.size > limit) throw new Error('This file exceeds the supported size (256 KB).');
-  try { return JSON.parse(await file.text()); }
-  catch { throw new Error('This file is not valid JSON.'); }
-}
-
 function textElement(tag, content, className) {
   const el = document.createElement(tag);
   el.textContent = content;
@@ -171,29 +164,6 @@ $('#copy-reviewer-wallet').addEventListener('click', event => action(event.curre
   await navigator.clipboard.writeText(reviewerIdentity.walletAddress);
   notify('Public reviewer wallet address copied.');
 }));
-$('#review-agreement').addEventListener('change', event => action(null, async () => {
-  reviewAgreement = null;
-  submissionHash = null;
-  $('#approve-review').disabled = true;
-  $('#review-heading').textContent = 'Choose an agreement';
-  $('#review-contract').textContent = '';
-  $('#review-agreement-id').textContent = '';
-  $('#load-testnet-demo').hidden = false;
-  $('#review-work').value = '';
-  $('#work-fingerprint').textContent = '';
-  $('#review-terms').replaceChildren();
-  $('#demo-work-details').hidden = true;
-  $('#review-stage').replaceChildren(new Option('Import an agreement first', ''));
-  $('#review-output').textContent = '';
-  const agreement = validateAgreement(await readJson(event.target.files[0]));
-  if (agreement.schema !== QUORUM_AGREEMENT_SCHEMA) throw new Error('Import a v3 percentage-quorum agreement.');
-  reviewAgreement = agreement;
-  $('#review-stage').replaceChildren(...agreement.milestones.map(stage => new Option(stage.title, stage.id)));
-  $('#review-heading').textContent = agreement.title;
-  $('#review-agreement-id').textContent = await agreementId(agreement);
-  $('#review-output').textContent = 'Choose the work file to review.';
-  renderReviewTerms();
-}));
 function renderReviewTerms() {
   const stage = reviewAgreement?.milestones.find(s => s.id === $('#review-stage').value);
   if (!stage) return $('#review-terms').replaceChildren();
@@ -212,9 +182,9 @@ async function loadTestnetDemo() {
   $('#approve-review').disabled = true;
   reviewAgreement = validateAgreement(TESTNET_DEMO.agreement);
   if (await agreementId(reviewAgreement) !== TESTNET_DEMO.agreementId) throw new Error('Demo agreement identity mismatch.');
-  $('#review-agreement').value = '';
   $('#review-work').value = '';
   $('#review-stage').replaceChildren(...reviewAgreement.milestones.map(s => new Option(s.title, s.id)));
+  $('#review-stage-picker').hidden = reviewAgreement.milestones.length === 1;
   submissionHash = await sha256Hex(new TextEncoder().encode(TESTNET_DEMO.work));
   if (submissionHash !== TESTNET_DEMO.submissionHash) { submissionHash = null; throw new Error('Demo work fingerprint mismatch.'); }
   $('#work-fingerprint').textContent = 'Bundled demo work fingerprint: ' + submissionHash;
@@ -234,7 +204,6 @@ $('#explore-open-accord').addEventListener('click', event => action(event.curren
   await loadTestnetDemo();
   showView('review');
 }));
-$('#download-demo-agreement').addEventListener('click', () => downloadJson(TESTNET_DEMO.agreement, 'ootleaccord-testnet-demo.json'));
 $('#download-demo-work').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([TESTNET_DEMO.work], { type: 'text/plain;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = 'ootleaccord-demo-work.txt'; link.click();
@@ -243,7 +212,7 @@ $('#download-demo-work').addEventListener('click', () => {
 $('#review-form').addEventListener('submit', event => {
   event.preventDefault();
   action(event.submitter, async () => {
-    if (!reviewAgreement) throw new Error('Import a wallet-review agreement first.');
+    if (!reviewAgreement) throw new Error('Open an accord first.');
     if (!submissionHash) throw new Error('Choose the work file that the creator submitted.');
     if (!wallet.getState().account) await wallet.connect();
     const result = await wallet.approveMilestone({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
@@ -262,7 +231,7 @@ $('#review-work').addEventListener('change', event => action(null, async () => {
   $('#approve-review').disabled = !reviewAgreement;
 }));
 $('#submit-work').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (!reviewAgreement || !submissionHash) throw new Error('Import an agreement and choose its work file first.');
+  if (!reviewAgreement || !submissionHash) throw new Error('Open an accord and choose its work file first.');
   const result = await wallet.submitWork({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
   walletSubmission(result, $('#review-output'));
 }));
