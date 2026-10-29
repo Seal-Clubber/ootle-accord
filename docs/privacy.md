@@ -1,4 +1,4 @@
-> **Legacy v1 reference.** New agreements use [Sapient wallet-authorized review](wallet-review.md). The secret-based HTLC behavior below applies only to old handoffs and recovery files. The new approval component is not deployed and holds no funds.
+> **Legacy v1 reference.** New agreements use [Sapient wallet-authorized review](wallet-review.md). The secret-based HTLC behavior below applies only to old handoffs and recovery files. The new quorum approval component is deployed on Esmeralda and holds no funds. See [testnet receipts](testnet-deployment.md).
 
 # Privacy and trust boundaries
 

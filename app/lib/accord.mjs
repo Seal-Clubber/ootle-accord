@@ -2,6 +2,7 @@
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
 export const AGREEMENT_SCHEMA = 'ootleaccord.agreement.v1';
 export const WALLET_AGREEMENT_SCHEMA = 'ootleaccord.agreement.v2';
+export const QUORUM_AGREEMENT_SCHEMA = 'ootleaccord.agreement.v3';
 export const UINT64_MAX = (1n << 64n) - 1n;
 // Protocol-native TARI, six decimals; v1 does not support custom resource divisibilities.
 export const NATIVE_TARI_RESOURCE = `resource_${'01'.repeat(32)}`;
@@ -90,16 +91,30 @@ export function hex32(value, label = '32-byte hex value') {
   return value.toLowerCase();
 }
 
+export function requiredApprovals(count, percent) {
+  if (!Number.isInteger(count) || count < 1 || count > 10 || !Number.isInteger(percent) || percent < 1 || percent > 100) throw new AccordError('Use one to ten reviewers and a whole approval percentage from 1 to 100.');
+  return Math.floor((count * percent + 99) / 100);
+}
+
+function normalizeReviewer(reviewer) {
+  onlyKeys(reviewer, ['name', 'role', 'walletAddress', 'publicKey'], 'Reviewer');
+  const publicKey = reviewerKeyFromWallet(reviewer.walletAddress);
+  if (reviewer.publicKey !== undefined && reviewer.publicKey !== publicKey) throw new AccordError('Reviewer key does not match the wallet address.');
+  return { name: text(reviewer.name, 'Reviewer name', 1, 100), role: text(reviewer.role ?? 'Independent reviewer', 'Reviewer role', 1, 160), walletAddress: reviewer.walletAddress, publicKey };
+}
+
 export function validateAgreement(input) {
   onlyKeys(input, ['schema', 'title', 'description', 'network', 'resourceAddress', 'creatorWalletAddress', 'milestones'], 'Agreement');
   const schema = input.schema ?? AGREEMENT_SCHEMA;
-  const walletReview = schema === WALLET_AGREEMENT_SCHEMA;
-  if (![AGREEMENT_SCHEMA, WALLET_AGREEMENT_SCHEMA].includes(schema)) throw new AccordError('Unsupported agreement version.');
+  const quorumReview = schema === QUORUM_AGREEMENT_SCHEMA;
+  const walletReview = quorumReview || schema === WALLET_AGREEMENT_SCHEMA;
+  if (![AGREEMENT_SCHEMA, WALLET_AGREEMENT_SCHEMA, QUORUM_AGREEMENT_SCHEMA].includes(schema)) throw new AccordError('Unsupported agreement version.');
   if (input.network !== 'esmeralda') throw new AccordError('This prototype supports the Esmeralda testnet only.', 'WRONG_NETWORK');
   if (typeof input.resourceAddress !== 'string' || !RESOURCE.test(input.resourceAddress)) throw new AccordError('Enter a valid resource address.');
   if (input.resourceAddress.toLowerCase() !== NATIVE_TARI_RESOURCE) throw new AccordError('Agreement v1 supports only native TARI with six decimal places.', 'UNSUPPORTED_RESOURCE');
   // This lexical check catches wrong address classes; Sapient validates the complete address and checksum.
   if (typeof input.creatorWalletAddress !== 'string' || !WALLET.test(input.creatorWalletAddress)) throw new AccordError('Enter an Ootle wallet address (otl_…), not an account component.');
+  if (quorumReview) reviewerKeyFromWallet(input.creatorWalletAddress);
   if (!Array.isArray(input.milestones) || input.milestones.length < 1 || input.milestones.length > 8) throw new AccordError('An agreement needs between one and eight milestones.');
   for (let index = 0; index < input.milestones.length; index++) {
     if (!Object.hasOwn(input.milestones, index)) throw new AccordError('Milestones cannot contain empty array slots.');
@@ -107,25 +122,33 @@ export function validateAgreement(input) {
   const ids = new Set();
   const hashes = new Set();
   const milestones = input.milestones.map(stage => {
-    onlyKeys(stage, ['id', 'title', 'description', 'reviewer', 'refundEpoch', 'targetUnits', ...(walletReview ? [] : ['hashLockHex'])], 'Milestone');
+    onlyKeys(stage, ['id', 'title', 'description', 'refundEpoch', 'targetUnits', ...(quorumReview ? ['reviewers', 'approvalPercent'] : ['reviewer']), ...(walletReview ? [] : ['hashLockHex'])], 'Milestone');
     const id = text(stage.id, 'Milestone ID', 1, 40);
     if (!/^[a-z0-9][a-z0-9-]*$/.test(id) || ids.has(id)) throw new AccordError('Use unique lowercase milestone IDs containing letters, digits and hyphens.');
     ids.add(id);
-    onlyKeys(stage.reviewer, ['name', 'role', ...(walletReview ? ['walletAddress', 'publicKey'] : [])], 'Reviewer');
+    if (!quorumReview) onlyKeys(stage.reviewer, ['name', 'role', ...(walletReview ? ['walletAddress', 'publicKey'] : [])], 'Reviewer');
+    let reviewers;
+    if (quorumReview) {
+      if (!Array.isArray(stage.reviewers)) throw new AccordError('Provide a reviewer list.');
+      requiredApprovals(stage.reviewers.length, stage.approvalPercent);
+      for (let i = 0; i < stage.reviewers.length; i++) if (!Object.hasOwn(stage.reviewers, i)) throw new AccordError('Reviewer list cannot contain empty slots.');
+      reviewers = stage.reviewers.map(normalizeReviewer);
+      if (new Set(reviewers.map(r => r.publicKey)).size !== reviewers.length) throw new AccordError('Each reviewer must have a distinct signing key.');
+    }
     const hashLockHex = walletReview ? null : hex32(stage.hashLockHex, 'Reviewer hashlock');
     if (!walletReview && hashes.has(hashLockHex)) throw new AccordError('Each milestone needs a separate reviewer secret.');
     if (!walletReview) hashes.add(hashLockHex);
-    const publicKey = walletReview ? reviewerKeyFromWallet(stage.reviewer.walletAddress) : null;
-    if (walletReview && stage.reviewer.publicKey !== undefined && stage.reviewer.publicKey !== publicKey) throw new AccordError('Reviewer key does not match the wallet address.');
+    const publicKey = walletReview && !quorumReview ? reviewerKeyFromWallet(stage.reviewer.walletAddress) : null;
+    if (walletReview && !quorumReview && stage.reviewer.publicKey !== undefined && stage.reviewer.publicKey !== publicKey) throw new AccordError('Reviewer key does not match the wallet address.');
     const normalized = {
       id,
       title: text(stage.title, 'Milestone title', 1, 100),
       description: text(stage.description ?? '', 'Milestone description', 0, 2000),
-      reviewer: {
+      ...(quorumReview ? { reviewers, approvalPercent: stage.approvalPercent } : { reviewer: {
         name: text(stage.reviewer.name, 'Reviewer name', 1, 100),
         role: text(stage.reviewer.role ?? 'Independent reviewer', 'Reviewer role', 1, 160),
         ...(walletReview ? { walletAddress: stage.reviewer.walletAddress, publicKey } : {}),
-      },
+      } }),
       ...(!walletReview ? { hashLockHex } : {}),
       refundEpoch: validateEpoch(stage.refundEpoch),
     };

@@ -16,6 +16,8 @@ jobs:
         run: rustup toolchain install 1.97.1 --profile minimal --target wasm32-unknown-unknown
       - name: Compile authorization template
         run: cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-review-template --locked
+      - name: Exercise quorum and authorization in the Tari engine
+        run: cargo +1.97.1 test -p accord-review-template --test quorum_engine --locked
   verify:
     runs-on: ubuntu-latest
     steps:

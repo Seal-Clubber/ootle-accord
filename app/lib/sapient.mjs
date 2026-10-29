@@ -1,6 +1,7 @@
 // Provider contract: chironbuilds/tari-wallet/src/lib/messages.ts and
 // docs/integration/provider-api.md. No keys, view grants, balances, or telemetry.
-import { WALLET_AGREEMENT_SCHEMA, validateAgreement, agreementId } from './accord.mjs';
+import { QUORUM_AGREEMENT_SCHEMA, validateAgreement, agreementId } from './accord.mjs';
+import { cborReviewerIndex, cborSubmissionHash } from './review-args.mjs';
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
 import { REVIEW_DEPLOYMENTS } from './review-deployments.mjs';
 
@@ -350,18 +351,33 @@ export function createSapientAdapter({
         return Object.freeze({ walletAddress, publicKey: reviewerKeyFromWallet(walletAddress) });
       } finally { busy = false; }
     },
-    async approveMilestone({ agreement, stageId, maxFee } = {}, options) {
+    async approveMilestone({ agreement, stageId, submissionHash, maxFee } = {}, options) {
       const terms = validateAgreement(agreement);
-      if (terms.schema !== WALLET_AGREEMENT_SCHEMA) throw new SapientError('This agreement uses legacy secret-based review.', 'LEGACY_AGREEMENT');
+      if (terms.schema !== QUORUM_AGREEMENT_SCHEMA) throw new SapientError('Import a v3 percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
       const stage = terms.milestones.find(item => item.id === stageId);
       if (!stage) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');
+      const hashArg = cborSubmissionHash(submissionHash);
       validateFee(maxFee);
       const id = await agreementId(terms);
       const component = REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stageId}`];
       if (!component) throw new SapientError('The wallet approval contract for this milestone has not been deployed and verified. No approval transaction was created.', 'REVIEW_NOT_DEPLOYED');
       const identity = await api.getReviewerIdentity();
-      if (identity.publicKey !== stage.reviewer.publicKey) throw new SapientError('Connect the designated reviewer’s Sapient wallet.', 'WRONG_REVIEWER');
-      return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [] } }], ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
+      const index = stage.reviewers.findIndex(reviewer => reviewer.publicKey === identity.publicKey);
+      if (index < 0) throw new SapientError('Connect one of the designated reviewer wallets.', 'WRONG_REVIEWER');
+      return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [cborReviewerIndex(index), hashArg] } }], ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
+    },
+    async submitWork({ agreement, stageId, submissionHash, maxFee } = {}, options) {
+      const terms = validateAgreement(agreement);
+      if (terms.schema !== QUORUM_AGREEMENT_SCHEMA) throw new SapientError('Import a v3 percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
+      const hashArg = cborSubmissionHash(submissionHash);
+      validateFee(maxFee);
+      if (!terms.milestones.some(stage => stage.id === stageId)) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');
+      const id = await agreementId(terms);
+      const component = REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stageId}`];
+      if (!component) throw new SapientError('This milestone has no verified deployment. No transaction was created.', 'REVIEW_NOT_DEPLOYED');
+      const identity = await api.getReviewerIdentity();
+      if (identity.publicKey !== reviewerKeyFromWallet(terms.creatorWalletAddress)) throw new SapientError('Connect the project creator’s wallet.', 'WRONG_CREATOR');
+      return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'submit_work', args: [hashArg] } }], ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
     },
     /** Reveals the reviewer preimage to the wallet/indexer and on-chain during the claim. */
     claimMilestone({ resourceAddress, commitment, conditions, preimageHex, maxFee } = {}, options) {

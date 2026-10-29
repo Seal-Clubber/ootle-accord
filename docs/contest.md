@@ -36,7 +36,7 @@ Source (MIT): [Seal-Clubber/ootle-accord](https://github.com/Seal-Clubber/ootle-
 
 Demo or demonstration: **[DEMO_URL_OR_RECORDING]**
 
-OotleAccord is a new escrow-protocol library and browser prototype for funding community work under agreed milestone terms. New agreements designate a Sapient wallet for each milestone reviewer. The original approval template checks a real reviewer transaction-signer proof and a chain deadline. It currently holds no funds and is not deployed. Legacy secret-based HTLC recovery remains supported separately. Funding targets, work approval and stage order are human policies rather than on-chain conditions.
+OotleAccord is a new escrow-protocol library and browser prototype for funding community work under agreed milestone terms. New v3 agreements fix a list of distinct Sapient reviewer keys and an approval percentage per milestone. The original approval template checks a real reviewer transaction-signer proof and a chain deadline. It holds no funds; a 60% quorum demonstration with two committed approvals is deployed on Esmeralda. Legacy secret-based HTLC recovery remains supported separately. Review votes are enforced on-chain for the same submitted work hash; funding targets, work quality and stage order remain human policies.
 
 New funding is currently disabled because stock Sapient's dApp HTLC route reveals the funding amount. The SDK supports stealth-source funding, but the inspected wallet provider does not expose it. The prototype offers wallet-review agreements, Sapient reviewer identity, a guarded approval adapter, and encrypted legacy recovery tools. Approval and private escrow deployment are unfinished. These are implementation boundaries, not evidence of a live-network lifecycle.
 

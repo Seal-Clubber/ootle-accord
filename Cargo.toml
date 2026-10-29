@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/accord-review-template"]
+members = ["crates/accord-review-template", "crates/accord-deploy-args"]
 resolver = "2"
 
 [profile.release]

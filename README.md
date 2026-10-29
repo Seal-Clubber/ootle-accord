@@ -21,17 +21,17 @@ Open [http://127.0.0.1:4173/](http://127.0.0.1:4173/). The local server binds on
 The application includes:
 
 - A local sandbox demonstrating milestone pledges, reviewer release and deadline refunds. Sandbox actions never contact a wallet or move funds.
-- A public agreement designer with fixed recipient, milestone acceptance terms, reviewer wallet addresses and chain refund epochs.
+- A public agreement designer with fixed recipient, milestone acceptance terms, distinct reviewer wallet addresses, approval percentages and chain refund epochs.
 - Reviewer identity read directly from Sapient, with no manual release-secret generation for new agreements.
 - A Sapient connection with runtime network and capability checks. It requests no private balance or view access.
-- Explicit claim/refund requests for compatible existing HTLC records, with private fees required. These paths still need an installed supporting extension, the original material and network validation.
+- Explicit refund requests for compatible existing HTLC records, with private fees required. These paths still need an installed supporting extension, the original material and network validation.
 - Encrypted recovery helpers using PBKDF2-SHA256 and AES-256-GCM. A private creator handoff omits the donor's amount and refund mask.
 
 ## Funding model and limits
 
-New v2 agreements designate a Sapient reviewer wallet for each milestone. The new accord-review-template component binds immutable agreement and milestone IDs, the reviewer signing key, and a chain deadline. A signed approve() call records approval once. This authorization component holds no funds; escrow integration, engine qualification and deployment remain outstanding. The deployment allowlist is empty, so no live approval transaction is created yet. See [wallet review](docs/wallet-review.md).
+New v3 agreements fix up to ten Sapient reviewer keys and a percentage per milestone. The creator submits a work fingerprint, and reviewers sign approvals for that same work. Votes required round up against all designated reviewers. The quorum template and a 3-of-5 example are deployed on Esmeralda, with two committed test approvals awaiting the community reviewer. This component holds no funds; private escrow remains unfinished. See [wallet review](docs/wallet-review.md) and [deployment receipts](docs/testnet-deployment.md).
 
-Legacy v1 HTLC handoffs and encrypted recovery files remain readable. Their hashlocks are unchanged and cannot be upgraded by this website. The website no longer offers the old secret-based claim flow. There is no campaign-wide goal, quorum, stage-order or work-quality enforcement.
+Legacy v1 HTLC handoffs and encrypted recovery files remain readable. Their hashlocks are unchanged and cannot be upgraded by this website. The website no longer offers the old secret-based claim flow. There is no campaign-wide goal, stage-order or work-quality enforcement. Quorum applies to review authorization only.
 
 This version supports native TARI on Esmeralda and six decimal places. Refund deadlines are chain epochs, not calendar timestamps. A wallet seed alone is insufficient for this recovery format: retain the encrypted backup, its password, the original funding wallet and fee funds.
 
@@ -47,7 +47,7 @@ node scripts/build.mjs
 
 `check.mjs` checks JavaScript syntax and page references. Tests cover amount precision, agreement validation, secrets, encrypted recovery, wallet request recovery and preview-server boundaries. Wallet tests use a mock provider; they do not establish validator acceptance, an installed-extension round trip or live privacy.
 
-The wallet-review update passed 40 JavaScript tests with one Windows symlink-permission skip. The new authorization template compiles to WASM; engine authorization tests and deployment remain outstanding. Browser sandbox, reviewer, export and encrypted-recovery flows were checked. See the [verification ledger](docs/verification.md) for results and outstanding evidence.
+The quorum update passed 48 JavaScript tests with one Windows symlink-permission skip and five real Tari-engine tests. Template publication, component creation, creator submission and two reviewer votes committed on Esmeralda. Installed Sapient approval and funded private escrow remain outstanding. See the [verification ledger](docs/verification.md).
 
 `build.mjs` creates a static `dist/` directory with local app assets and documentation. It excludes the preview server, dotfiles and JSON exports. The build does not publish or deploy anything. When hosting, apply the restrictive response policy in [app/server.mjs](app/server.mjs) and verify that the installed wallet can inject its provider under that policy. Assets and fonts are local; the application has no analytics or remote font service.
 
@@ -61,9 +61,9 @@ All application assets use relative paths so the project works at `/ootle-accord
 
 With Rust 1.97.1 and the wasm32-unknown-unknown target installed, run:
 
-    cargo build --target wasm32-unknown-unknown --release -p accord-review-template --locked
+    cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-review-template --locked
 
-This builds an authorization component, not a complete private escrow.
+Run `cargo +1.97.1 test -p accord-review-template --test quorum_engine --locked` on Linux to exercise the engine tests. The test helper also compiles the WASM. The helper requires a native Cranelift-supported target and build tools. `accord-deploy-args` encodes public deployment arguments with Tari’s CBOR library. This builds authorization, not a complete private escrow.
 
 ## Repository map
 

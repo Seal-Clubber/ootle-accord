@@ -1,29 +1,19 @@
-# Wallet-authorized milestone review
+# Wallet-authorized percentage review
 
-New agreement exports use `ootleaccord.agreement.v2`. Each milestone names a reviewer wallet address. The app decodes its public owner key from the checksummed Esmeralda address. There is no generated release secret, hashlock or reviewer secret file in the new flow.
+New exports use `ootleaccord.agreement.v3`. Each milestone fixes one to ten distinct Sapient owner keys, an integer approval percentage from 1 to 100, the creator and a deadline. Checksummed base Esmeralda addresses supply public keys. No release secret is generated.
 
-The reviewer connects Sapient and shares its reported wallet address with the organizer. Reading that address is not proof of ownership or an approval. It requests no private balances or view access. An actual transaction signed by the designated key is required to approve.
+Votes required are `ceil(reviewer count × percentage / 100)`: 60% of five needs three; 67% of three needs all three. Non-voters stay in the denominator. Different view keys cannot make one owner key count twice. Reviewer independence remains a community responsibility.
 
-## Authorization component
+The creator signs `submit_work(SHA256)` for a real work file. Reviewers sign `approve(index, same SHA256)`. Tari checks actual signer proofs. A reviewer votes once; the first vote prevents changing the work. Submission and votes fail at or after the deadline. Threshold completion is final. There is no negative vote, withdrawal, reviewer replacement, weighting, stage-order or work-quality enforcement. The component has no owner who can edit terms.
 
-`crates/accord-review-template` is an original Tari template pinned to `tari_template_lib = 0.35.0`. Each component fixes an agreement ID, milestone ID, reviewer public key and chain deadline. `approve()` checks a real transaction-signer proof for the designated reviewer, refuses approval at or after the deadline, and records approval once. The component has no owner who can edit these terms.
+**This component holds no funds and implements no escrow deposits, payouts or refunds.** Future escrow must verify the component's template and immutable terms and enforce its quorum. An approval flag cannot unlock an existing HTLC. Private funding stays disabled due to the documented stock Sapient private-source limitation.
 
-This component **holds no funds and does not implement escrow payouts or refunds**. An escrow must first verify its template identity and immutable terms, then enforce this component's decision. A standalone approval flag cannot release a legacy HTLC. Funding and escrow integration remain unfinished.
+The adapter prepares fixed calls only for verified allowlisted deployments, with resumable wallet requests and enforced private fees. Unlisted agreements cannot spend through this path. See [the live Esmeralda demo and receipts](testnet-deployment.md). Five tests execute the real WASM in Tari's engine and check rounding, duplicate and forged votes, mismatched work, invalid configurations and deadlines. Testnet approvals used official walletd; installed-extension approval awaits the user's Sapient transaction.
 
-The Sapient adapter prepares only the fixed `approve()` call for an allowlisted milestone deployment, using the existing resumable request lifecycle and enforced private fees. The allowlist is empty until deployment, terms and engine behavior have been verified. Pasting an arbitrary component address cannot enable this path. No reviewer approval transaction is created for an unverified deployment.
+Reading an address is not proof of ownership or approval. Identity lookup requests no balances, private view access or signature. The parser is checked against an independent Rust Bech32m vector, validates network and checksum, and extracts the owner key. It does not validate Ristretto points independently; chain signatures establish control.
 
-## Validation and status
+Reviewer addresses, keys, work hashes, votes and transaction relationships are public. Private fees do not make reviews anonymous. Files are hashed locally; this app uploads no file contents. Only an explicitly signed fingerprint enters a transaction.
 
-The template builds for `wasm32-unknown-unknown` with the pinned library. This establishes compilation, not validator acceptance. Engine authorization tests, deployment and live Sapient approval receipts remain outstanding. The website says this explicitly and cannot currently record a live review approval.
+Old v1/v2 data stays distinguishable. The old secret-based claim option is removed from the website. Website updates cannot alter conditions on existing outputs; never relabel old recovery data as v3.
 
-Address decoding is checked against a vector generated independently with Rust `bech32` 0.11.1. It validates Bech32m encoding and the Esmeralda prefix, extracts only the owner public key, and accepts base wallet addresses without payment references. Tari's transaction-signature verification must establish actual control of that key. The parser does not independently validate Ristretto points.
-
-Old v1 agreements and encrypted recovery records remain readable as legacy data. The old secret-based claim option has been removed from the website. Changing a website cannot replace conditions on an existing output. Never relabel a v1 recovery record as v2.
-
-## Privacy
-
-Reviewer wallet addresses, public keys and approval transactions are public. Reusing a reviewer wallet creates a link across its reviews. Signing through Sapient does not make that activity anonymous. No donation amounts are required in an approval call, and review does not require access to a contributor's balance.
-
-The previously documented private-source funding limitation remains unresolved. New private funding stays disabled.
-
-Primary references: [Sapient request types](https://github.com/chironbuilds/tari-wallet/blob/master/src/lib/messages.ts), [Tari transaction signer proofs](https://github.com/tari-project/tari-ootle/blob/v0.47.0/crates/template_lib/src/caller_context.rs), [Ootle address format](https://github.com/tari-project/tari-ootle/blob/v0.47.0/crates/ootle_address/src/ootle_address.rs), [network prefixes](https://github.com/tari-project/tari-ootle/blob/v0.47.0/crates/ootle_address/src/hrp.rs), [instruction format](https://github.com/tari-project/tari-ootle/blob/v0.47.0/bindings/src/types/Instruction.ts).
+Primary references: [Tari signer proofs](https://github.com/tari-project/tari-ootle/blob/v0.47.0/crates/template_lib/src/caller_context.rs), [Sapient request types](https://github.com/chironbuilds/tari-wallet/blob/master/src/lib/messages.ts), [instruction format](https://github.com/tari-project/tari-ootle/blob/v0.47.0/crates/transaction/src/v1/instruction.rs).

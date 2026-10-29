@@ -1,11 +1,12 @@
 import {
-  WALLET_AGREEMENT_SCHEMA, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
+  QUORUM_AGREEMENT_SCHEMA, requiredApprovals, sha256Hex, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
   toRawAmount, fromRawAmount,
 } from './lib/accord.mjs';
 import {
   decryptRecovery, encryptRecovery, createClaimHandoff,
 } from './lib/recovery.mjs';
 import { createSapientAdapter } from './lib/sapient.mjs';
+import { TESTNET_DEMO } from './lib/testnet-demo.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -14,6 +15,8 @@ let reviewerIdentity = null;
 let reviewAgreement = null;
 let recovery = null;
 let stageCounter = 0;
+let reviewerCounter = 0;
+let submissionHash = null;
 let feedbackTimer;
 
 function notify(message, error = false) {
@@ -166,15 +169,27 @@ function addDesignerStage(title = '') {
   article.innerHTML = `<legend class="sr-only">Milestone ${stageCounter}</legend><div class="section-heading"><h3>Milestone ${String(stageCounter).padStart(2, '0')}</h3><button type="button" class="text-button remove-stage">Remove</button></div>
     <label for="${id}-title">Milestone title</label><input id="${id}-title" data-field="title" required maxlength="100">
     <label for="${id}-description">Deliverable & acceptance criteria</label><textarea id="${id}-description" data-field="description" rows="2" maxlength="2000" required></textarea>
-    <div class="form-grid"><div><label for="${id}-reviewer">Independent reviewer</label><input id="${id}-reviewer" data-field="reviewer" required maxlength="100" placeholder="Name or pseudonym"></div><div><label for="${id}-target">Public stage target (TARI)</label><input id="${id}-target" data-field="target" inputmode="decimal" placeholder="Optional planning target"></div></div>
-    <label for="${id}-wallet">Reviewer’s Sapient wallet address</label><textarea id="${id}-wallet" data-field="wallet" rows="3" required maxlength="240" spellcheck="false" placeholder="otl_esm_1…"></textarea><button type="button" class="text-button use-reviewer-wallet">Use my connected Sapient wallet</button>
+    <label for="${id}-target">Public stage target (TARI)</label><input id="${id}-target" data-field="target" inputmode="decimal" placeholder="Optional planning target">
+    <div data-reviewers></div><button type="button" class="text-button add-reviewer">＋ Add reviewer</button>
+    <label for="${id}-percent">Approval required (%)</label><input id="${id}-percent" data-field="percent" type="number" min="1" max="100" step="1" value="60" required><p class="field-help quorum-preview"></p>
     <label for="${id}-epoch">Refund epoch (chain number)</label><input id="${id}-epoch" data-field="epoch" required inputmode="numeric" maxlength="16" placeholder="Confirm a future epoch on Esmeralda">`;
   article.querySelector('[data-field=title]').value = title;
-  article.querySelector('.use-reviewer-wallet').addEventListener('click', event => action(event.currentTarget, async () => {
-    const identity = await readReviewerIdentity();
-    article.querySelector('[data-field=wallet]').value = identity.walletAddress;
-    notify('Reviewer wallet copied from Sapient. No approval was signed.');
-  }));
+  function updateQuorum() {
+    try { const count = article.querySelectorAll('[data-reviewer]').length; const percent = Number(article.querySelector('[data-field=percent]').value); article.querySelector('.quorum-preview').textContent = requiredApprovals(count, percent) + ' of ' + count + ' designated reviewers must approve the same work. Non-voters remain in the denominator.'; }
+    catch { article.querySelector('.quorum-preview').textContent = 'Choose a whole percentage from 1 to 100.'; }
+  }
+  function addReviewer() {
+    if (article.querySelectorAll('[data-reviewer]').length >= 10) return notify('Use at most ten reviewers per milestone.', true);
+    const row = document.createElement('div'); row.dataset.reviewer = ''; row.className = 'reviewer-row';
+    reviewerCounter += 1; const prefix = 'reviewer-' + reviewerCounter;
+    row.innerHTML = '<label for="' + prefix + '-name">Reviewer name or pseudonym</label><input id="' + prefix + '-name" data-reviewer-name required maxlength="100"><label for="' + prefix + '-wallet">Reviewer Sapient wallet address</label><textarea id="' + prefix + '-wallet" data-reviewer-wallet rows="3" required maxlength="240" placeholder="otl_esm_1…" spellcheck="false"></textarea><button type="button" class="text-button use-wallet">Use my connected Sapient wallet</button><button type="button" class="text-button remove-reviewer">Remove reviewer</button>';
+    row.querySelector('.use-wallet').addEventListener('click', event => action(event.currentTarget, async () => { row.querySelector('[data-reviewer-wallet]').value = (await readReviewerIdentity()).walletAddress; notify('Reviewer address read from Sapient.'); }));
+    row.querySelector('.remove-reviewer').addEventListener('click', () => { if (article.querySelectorAll('[data-reviewer]').length === 1) return notify('Keep at least one reviewer.', true); row.remove(); updateQuorum(); });
+    article.querySelector('[data-reviewers]').append(row); updateQuorum();
+  }
+  article.querySelector('.add-reviewer').addEventListener('click', addReviewer);
+  article.querySelector('[data-field=percent]').addEventListener('input', updateQuorum);
+  addReviewer();
   article.querySelector('.remove-stage').addEventListener('click', () => {
     if ($$('.designer-stage').length === 1) return notify('Keep at least one milestone in the agreement.', true);
     article.remove();
@@ -193,13 +208,13 @@ $('#agreement-form').addEventListener('submit', event => {
       const target = value('target');
       return {
         id: article.dataset.id, title: value('title'), description: value('description'),
-        reviewer: { name: value('reviewer'), role: 'Independent reviewer', walletAddress: value('wallet') },
+        reviewers: [...article.querySelectorAll('[data-reviewer]')].map(row => ({ name: row.querySelector('[data-reviewer-name]').value.trim(), role: 'Independent reviewer', walletAddress: row.querySelector('[data-reviewer-wallet]').value.trim() })), approvalPercent: Number(value('percent')),
         refundEpoch: value('epoch'),
         ...(target ? { targetUnits: toRawAmount(target) } : {}),
       };
     });
     const agreement = validateAgreement({
-      schema: WALLET_AGREEMENT_SCHEMA, title: $('#campaign-title').value.trim(), description: $('#campaign-description').value.trim(),
+      schema: QUORUM_AGREEMENT_SCHEMA, title: $('#campaign-title').value.trim(), description: $('#campaign-description').value.trim(),
       network: 'esmeralda', resourceAddress: $('#resource-address').value.trim(),
       creatorWalletAddress: $('#creator-address').value.trim(), milestones: stages,
     });
@@ -228,22 +243,72 @@ $('#copy-reviewer-wallet').addEventListener('click', event => action(event.curre
 }));
 $('#review-agreement').addEventListener('change', event => action(null, async () => {
   reviewAgreement = null;
+  submissionHash = null;
+  $('#review-work').value = '';
+  $('#work-fingerprint').textContent = '';
+  $('#review-terms').replaceChildren();
+  $('#demo-work-details').hidden = true;
   $('#review-stage').replaceChildren(new Option('Import an agreement first', ''));
   $('#review-output').textContent = '';
   const agreement = validateAgreement(await readJson(event.target.files[0]));
-  if (agreement.schema !== WALLET_AGREEMENT_SCHEMA) throw new Error('This is a legacy secret-based agreement. Import a v2 wallet-review agreement.');
+  if (agreement.schema !== QUORUM_AGREEMENT_SCHEMA) throw new Error('Import a v3 percentage-quorum agreement.');
   reviewAgreement = agreement;
   $('#review-stage').replaceChildren(...agreement.milestones.map(stage => new Option(stage.title, stage.id)));
   $('#review-output').textContent = 'Agreement: ' + agreement.title + '. ID: ' + await agreementId(agreement) + '. Compare these terms with the community before approval.';
+  renderReviewTerms();
 }));
+function renderReviewTerms() {
+  const stage = reviewAgreement?.milestones.find(s => s.id === $('#review-stage').value);
+  if (!stage) return $('#review-terms').replaceChildren();
+  const list = document.createElement('ol');
+  for (const reviewer of stage.reviewers) list.append(textElement('li', `${reviewer.name}: ${reviewer.walletAddress}`));
+  $('#review-terms').replaceChildren(textElement('p', `${requiredApprovals(stage.reviewers.length, stage.approvalPercent)} of ${stage.reviewers.length} approvals required (${stage.approvalPercent}%). Deadline: before chain epoch ${stage.refundEpoch}.`), textElement('p', stage.description), list);
+}
+$('#review-stage').addEventListener('change', renderReviewTerms);
+$('#load-testnet-demo').addEventListener('click', event => action(event.currentTarget, async () => {
+  reviewAgreement = validateAgreement(TESTNET_DEMO.agreement);
+  if (await agreementId(reviewAgreement) !== TESTNET_DEMO.agreementId) throw new Error('Demo agreement identity mismatch.');
+  $('#review-agreement').value = '';
+  $('#review-work').value = '';
+  $('#review-stage').replaceChildren(...reviewAgreement.milestones.map(s => new Option(s.title, s.id)));
+  submissionHash = await sha256Hex(new TextEncoder().encode(TESTNET_DEMO.work));
+  if (submissionHash !== TESTNET_DEMO.submissionHash) { submissionHash = null; throw new Error('Demo work fingerprint mismatch.'); }
+  $('#work-fingerprint').textContent = 'Bundled demo work fingerprint: ' + submissionHash;
+  $('#demo-work-text').textContent = TESTNET_DEMO.work;
+  $('#demo-work-details').hidden = false;
+  $('#demo-work-details').open = true;
+  $('#review-output').textContent = `Recorded checkpoint: 2 of 3 required approvals at epoch ${TESTNET_DEMO.recordedEpoch}. This is not a live status feed. Agreement: ${TESTNET_DEMO.agreementId}. Component: ${TESTNET_DEMO.component}. Review the work below, then connect your designated Sapient wallet to approve.`;
+  renderReviewTerms();
+  notify('Public demo and its work loaded locally. Review the terms and work before approving.');
+}));
+$('#download-demo-agreement').addEventListener('click', () => downloadJson(TESTNET_DEMO.agreement, 'ootleaccord-testnet-demo.json'));
+$('#download-demo-work').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([TESTNET_DEMO.work], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'ootleaccord-demo-work.txt'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
 $('#review-form').addEventListener('submit', event => {
   event.preventDefault();
   action(event.submitter, async () => {
     if (!reviewAgreement) throw new Error('Import a wallet-review agreement first.');
-    const result = await wallet.approveMilestone({ agreement: reviewAgreement, stageId: $('#review-stage').value, maxFee: toRawAmount($('#review-fee').value.trim()) });
+    if (!submissionHash) throw new Error('Choose the work file that the creator submitted.');
+    const result = await wallet.approveMilestone({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
     walletSubmission(result, $('#review-output'));
   });
 });
+
+$('#review-work').addEventListener('change', event => action(null, async () => {
+  submissionHash = null; $('#work-fingerprint').textContent = '';
+  const file = event.target.files[0];
+  if (!file || file.size > 10 * 1024 * 1024) throw new Error('Choose a work file up to 10 MB.');
+  submissionHash = await sha256Hex(await file.arrayBuffer());
+  $('#work-fingerprint').textContent = 'Work fingerprint: ' + submissionHash + '. The file stays on this device.';
+}));
+$('#submit-work').addEventListener('click', event => action(event.currentTarget, async () => {
+  if (!reviewAgreement || !submissionHash) throw new Error('Import an agreement and choose its work file first.');
+  const result = await wallet.submitWork({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
+  walletSubmission(result, $('#review-output'));
+}));
 
 function requireConnected() {
   if (!wallet.getState().account) {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { reviewerKeyFromWallet } from '../app/lib/wallet-address.mjs';
-import { validateAgreement, agreementId, WALLET_AGREEMENT_SCHEMA, NATIVE_TARI_RESOURCE } from '../app/lib/accord.mjs';
+import { validateAgreement, agreementId, WALLET_AGREEMENT_SCHEMA, QUORUM_AGREEMENT_SCHEMA, NATIVE_TARI_RESOURCE } from '../app/lib/accord.mjs';
 import { createSapientAdapter } from '../app/lib/sapient.mjs';
 import { createPledgeRecovery } from '../app/lib/recovery.mjs';
 
@@ -73,7 +73,9 @@ test('account changes while reading reviewer identity invalidate the response', 
 test('unverified review deployments never cause a wallet request or spend', async () => {
   const mock = mockWallet();
   const adapter = createSapientAdapter({ provider: mock.provider, storage: null });
-  await assert.rejects(adapter.approveMilestone({ agreement: terms, stageId: 'delivery', maxFee: '1000' }), { code: 'REVIEW_NOT_DEPLOYED' });
+  const quorum = { ...terms, schema: QUORUM_AGREEMENT_SCHEMA, milestones: [{ id: 'delivery', title: 'Deliver work', reviewers: [terms.milestones[0].reviewer], approvalPercent: 60, refundEpoch: '1000' }] };
+  await assert.rejects(adapter.approveMilestone({ agreement: quorum, stageId: 'delivery', submissionHash: 'a'.repeat(64), maxFee: '1000' }), { code: 'REVIEW_NOT_DEPLOYED' });
   assert.deepEqual(mock.calls, []);
-  await assert.rejects(adapter.approveMilestone({ agreement: terms, stageId: 'absent' }), { code: 'INVALID_STAGE' });
+  await assert.rejects(adapter.approveMilestone({ agreement: quorum, stageId: 'absent' }), { code: 'INVALID_STAGE' });
+  await assert.rejects(adapter.approveMilestone({ agreement: terms, stageId: 'delivery' }), { code: 'UNSUPPORTED_REVIEW_PROTOCOL' });
 });

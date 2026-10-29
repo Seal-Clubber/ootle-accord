@@ -1,10 +1,10 @@
-# Wallet-review update
+# Percentage-quorum update — 30 October 2026
 
-The new v2 flow passed 40 JavaScript tests with one Windows symlink-permission skip. A reviewer address was decoded against an independent Rust Bech32m vector. Tests cover mismatched signer keys, legacy/v2 format separation, account changes and the unverified-deployment request guard. The release WASM build passed with Rust 1.97.1 and Tari template library 0.35.0.
+48 JavaScript tests passed, one Windows symlink-permission skip, no failures. Five real Tari-engine tests passed in Ubuntu: 3-of-5 gating, rounding/unanimity, forged and duplicate votes, work mismatch/change, deadlines and invalid reviewer/threshold configurations. The template and immutable component terms were verified against actual committed Esmeralda receipts. Creator work and two reviewer approvals committed. See [deployment details and fee ledger](testnet-deployment.md).
 
-This approval component holds no funds. Engine authorization tests, verified deployment, installed-extension approval and private escrow integration are still outstanding. No live approval or escrow lifecycle is claimed.
+The app allows only the verified demo component. It enforces private fees for Sapient requests and reads no balances or private view data. Wallet request tests use a mock; a successful installed Sapient transaction remains outstanding. This component holds no funds. Private funding and escrow integration are unfinished.
 
-The ledger below records the earlier v1 prototype and is historical.
+The following ledger records the earlier v1 prototype and is historical.
 
 # Verification ledger
 
@@ -34,4 +34,4 @@ Wallet tests use a mock provider. Synthetic browser fixtures are local and ignor
 - Cryptographic validation that a funded output's conditions implement the full public agreement. Current recovery import validates structure and agreement identity only; the wallet enforces the actual native conditions.
 - Independent security review.
 
-No template is published or deployed by this repository. No local check is evidence of a completed live payment or refund.
+The quorum template is now published; see the current update above. No test here establishes a completed live campaign payment or refund.
