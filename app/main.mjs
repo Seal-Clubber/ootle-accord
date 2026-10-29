@@ -81,6 +81,15 @@ function textElement(tag, content, className) {
   return el;
 }
 
+const deployedStage = TESTNET_DEMO.agreement.milestones[0];
+const deployedRequired = requiredApprovals(deployedStage.reviewers.length, deployedStage.approvalPercent);
+$('#deployed-title').textContent = TESTNET_DEMO.agreement.title;
+$('#explore-reviewer-count').textContent = String(deployedStage.reviewers.length);
+$('#explore-threshold').textContent = `${deployedStage.approvalPercent}% · ${deployedRequired} of ${deployedStage.reviewers.length}`;
+$('#explore-approvals').textContent = `${TESTNET_DEMO.recordedApprovals} of ${deployedRequired} required`;
+$('#explore-checkpoint').textContent = `Deployment verified. Approvals shown are the recorded checkpoint at chain epoch ${TESTNET_DEMO.recordedEpoch}, not a live vote count.`;
+$('#explore-component').textContent = TESTNET_DEMO.component;
+
 // The demonstration is deliberately separate from the protocol/wallet code. It has no network
 // calls, real commitments, keys or exportable funding records; every amount lives in memory.
 const demoStages = [
@@ -265,7 +274,7 @@ function renderReviewTerms() {
   $('#review-terms').replaceChildren(textElement('p', `${requiredApprovals(stage.reviewers.length, stage.approvalPercent)} of ${stage.reviewers.length} approvals required (${stage.approvalPercent}%). Deadline: before chain epoch ${stage.refundEpoch}.`), textElement('p', stage.description), list);
 }
 $('#review-stage').addEventListener('change', renderReviewTerms);
-$('#load-testnet-demo').addEventListener('click', event => action(event.currentTarget, async () => {
+async function loadTestnetDemo() {
   reviewAgreement = validateAgreement(TESTNET_DEMO.agreement);
   if (await agreementId(reviewAgreement) !== TESTNET_DEMO.agreementId) throw new Error('Demo agreement identity mismatch.');
   $('#review-agreement').value = '';
@@ -280,6 +289,11 @@ $('#load-testnet-demo').addEventListener('click', event => action(event.currentT
   $('#review-output').textContent = `Recorded checkpoint: 2 of 3 required approvals at epoch ${TESTNET_DEMO.recordedEpoch}. This is not a live status feed. Agreement: ${TESTNET_DEMO.agreementId}. Component: ${TESTNET_DEMO.component}. Review the work below, then connect your designated Sapient wallet to approve.`;
   renderReviewTerms();
   notify('Public demo and its work loaded locally. Review the terms and work before approving.');
+}
+$('#load-testnet-demo').addEventListener('click', event => action(event.currentTarget, loadTestnetDemo));
+$('#explore-open-accord').addEventListener('click', event => action(event.currentTarget, async () => {
+  await loadTestnetDemo();
+  showView('review');
 }));
 $('#download-demo-agreement').addEventListener('click', () => downloadJson(TESTNET_DEMO.agreement, 'ootleaccord-testnet-demo.json'));
 $('#download-demo-work').addEventListener('click', () => {
