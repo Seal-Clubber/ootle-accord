@@ -34,7 +34,7 @@ Ootle mainnet is scheduled for 11 November 2026; the contest prototype targets E
 
 Source (MIT): [Seal-Clubber/ootle-accord](https://github.com/Seal-Clubber/ootle-accord)
 
-Demo or demonstration: **[DEMO_URL_OR_RECORDING]**
+Demo: [GitHub Pages](https://seal-clubber.github.io/ootle-accord/#review). Choose Load testnet demo.
 
 OotleAccord is a new escrow-protocol library and browser prototype for funding community work under agreed milestone terms. New v3 agreements fix a list of distinct Sapient reviewer keys and an approval percentage per milestone. The original approval template checks a real reviewer transaction-signer proof and a chain deadline. It holds no funds; a 60% quorum demonstration with two committed approvals is deployed on Esmeralda. Legacy secret-based HTLC recovery remains supported separately. Review votes are enforced on-chain for the same submitted work hash; funding targets, work quality and stage order remain human policies.
 
@@ -44,11 +44,11 @@ It is a new implementation inspired by the community-funding problem explored by
 
 **Privacy demonstrated locally:** recovery records are encrypted with PBKDF2-SHA256 and AES-256-GCM using fresh salts and IVs; creator handoffs omit the refund mask and amount field; public agreement validation rejects unsupported fields; no balance/view grant, analytics, or remote fonts are requested. These local properties do not establish private on-chain funding.
 
-**Sapient integration implemented:** explicit connection, Esmeralda and capability checks, resumable native claim/refund requests with enforced private fees, and a funding guard. Provider behavior is verified with mocks and inspected upstream source. An installed-extension and validator round trip remains unverified.
+**Sapient integration implemented:** explicit connection, Esmeralda and capability checks, resumable native claim/refund requests with enforced private fees, and a funding guard. Provider behavior is verified with mocks and inspected upstream source. The installed-extension round trip remains unverified; template publication and local-wallet review transactions have committed on Esmeralda.
 
-**Evidence:** see [the verification ledger](verification.md) for local commands and browser checks. Esmeralda is the intended network; there are no live receipts. No template deployment, successful live funding, payment, refund or independent security review is claimed by this draft.
+**Evidence:** see [the verification ledger](verification.md) for local commands and browser checks. The [Esmeralda deployment ledger](testnet-deployment.md) links committed publication, constructor, work submission and two reviewer approvals. The contract holds no funds. Successful campaign funding, payment, refund and independent security review remain unverified.
 
-**Boundaries:** native stock-wallet funding reveals its amount and source account, so it is disabled. Claim/refund signers, timing and transaction graphs remain observable. A claim discloses the reviewer secret to the indexer and chain. Work approval, total funding and stage order require human review. Refunds need the original wallet, complete conditions, amount and refund mask, plus fees. No public exact funding total or donor roster is maintained.
+**Boundaries:** native stock-wallet funding reveals its amount and source account, so it is disabled. Claim/refund signers, timing and transaction graphs remain observable. A claim discloses the reviewer secret to the indexer and chain. Votes on a fixed work fingerprint are enforced by the quorum contract; work quality, total funding and stage order require human review. Refunds need the original wallet, complete conditions, amount and refund mask, plus fees. No public exact funding total or donor roster is maintained.
 
 **Development disclosure:** This original implementation was developed with AI coding assistance under the submitter's direction. Local protocol, encryption, provider-error and server tests were run, and the authorization template was compiled, and the browser sandbox, export and recovery flows were checked. An independent audit and live-network qualification remain outstanding.
 
