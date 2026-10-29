@@ -1,0 +1,26 @@
+# Generated output and dependencies
+dist/
+node_modules/
+coverage/
+
+# Local credentials, wallet material and confidential exports
+.env
+.env.*
+!.env.example
+.local/
+*.recovery
+*.recovery.json
+*.recovery.encrypted.json
+*.reviewer-secret.json
+*.claim-handoff.json
+*.accord-secret.json
+*.accord-vault.json
+*.claim.json
+*.pem
+*.key
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

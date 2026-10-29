@@ -1,0 +1,15 @@
+{
+  "name": "ootle-accord",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Community funding by agreement on Tari Ootle, with private recovery and Sapient integration.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node app/server.mjs",
+    "check": "node scripts/check.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}
