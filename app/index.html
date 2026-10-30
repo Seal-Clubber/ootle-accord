@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://ootle-indexer-a.tari.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://ootle-indexer-a.tari.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OotleAccord — community milestone agreements and Sapient review on Tari Esmeralda.">
@@ -23,6 +23,7 @@
     <nav aria-label="Workspace"><button class="nav-item active" data-view="explore" aria-current="page">Accords</button><button class="nav-item" data-view="create">Create</button><button class="nav-item" data-view="review">Review</button></nav>
     <main id="main" tabindex="-1">
       <p class="app-status">Esmeralda testnet · Private-output escrow · Public funding total</p>
+      <div id="app-update" class="update-notice" role="status" hidden><p>An app update is ready. Save any unsaved changes before updating.</p><button type="button" id="app-update-apply" class="button button-outline">Update app</button></div>
       <section class="view" id="view-explore" aria-labelledby="explore-title">
         <div class="section-heading"><div><h1 id="explore-title">Accords</h1><p>Milestone agreements on Esmeralda.</p></div><button class="button button-primary" data-view="create">New accord</button></div>
         <div id="accord-list"></div>
@@ -33,10 +34,11 @@
           <div class="accord-stats"><div><span>Locked in escrow</span><strong data-ui="funded-amount"></strong></div><div><span>Remaining</span><strong data-ui="remaining-amount"></strong></div></div>
           <progress data-ui="funding-progress" max="100" value="100" aria-label="Escrow funding progress"></progress>
           <p data-ui="funding-note" class="field-help"></p>
-          <details><summary>Contribute</summary><label data-ui="contribution-label">Contribution (tTARI)</label><div class="inline-actions"><input data-ui="contribution-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal"><button type="button" data-ui="funding-max" class="button button-outline">Max</button></div><button type="button" class="button button-outline" disabled>Private funding unavailable in Sapient</button><p class="field-help">This funded test used the native private client. No further donations can be accepted after the goal is reached.</p></details>
           <div class="accord-stats"><div><span>Reviewers</span><strong data-ui="explore-reviewer-count"></strong></div><div><span>Approval threshold</span><strong data-ui="explore-threshold"></strong></div><div><span>Recorded votes</span><strong data-ui="explore-approvals"></strong></div></div>
           <p data-ui="explore-checkpoint" class="field-help"></p>
-          <div class="card-actions"><button type="button" data-ui="explore-open-accord" class="button button-primary">Review work</button><button type="button" data-ui="refresh-funding" class="button button-outline">Refresh balance</button><a data-ui="receipts" href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div>
+          <div class="card-actions"><button type="button" data-ui="fund-accord" class="button button-primary" aria-expanded="false">Fund this accord</button><button type="button" data-ui="explore-open-accord" class="button button-outline">Review work</button><button type="button" data-ui="refresh-funding" class="button button-outline">Refresh balance</button><a data-ui="receipts" href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div>
+          <p data-ui="funding-availability" class="field-help">Private funding through Sapient is not available yet.</p>
+          <section data-ui="funding-panel" class="funding-panel" hidden><h3>Fund this accord</h3><p class="field-help">Private funding through Sapient is not available yet. You can choose an amount, but payment is disabled.</p><label data-ui="contribution-label">Contribution (tTARI)</label><div class="inline-actions"><input data-ui="contribution-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal"><button type="button" data-ui="funding-max" class="button button-outline">Max</button></div><p data-ui="contribution-limit" class="field-help"></p><button type="button" class="button button-outline" disabled>Pay privately in Sapient — unavailable</button></section>
           <p class="field-help">Refresh contacts the Tari indexer with this public contract ID. No wallet data is sent.</p>
           <details><summary>Privacy &amp; contract details</summary><code data-ui="explore-component"></code><p class="field-help">Transfer amounts are encrypted and signing keys are one-time. Changes in the public total reveal contribution sizes. Transaction links and timing remain visible. Four reviewers are deployer-operated test wallets.</p></details>
         </article>
@@ -61,7 +63,7 @@
           <h2 id="review-heading">Choose an agreement</h2>
           <form id="review-form">
             <div id="review-stage-picker" hidden><label for="review-stage">Milestone</label><select id="review-stage" required><option value="">Open an accord first</option></select></div>
-            <output id="review-output" class="form-output"></output><div id="review-terms"></div>
+            <output id="review-output" class="form-output"></output><button type="button" id="review-fund" class="button button-primary" hidden>Fund this accord</button><div id="review-terms"></div>
             <details id="demo-work-details" hidden><summary>Work to review</summary><pre id="demo-work-text"></pre><div class="inline-actions"><button type="button" id="download-demo-work" class="text-button">Download work</button></div></details>
             <details><summary>Creator: submit work</summary>
               <label for="review-work">Work file</label><input type="file" id="review-work"><p id="work-fingerprint" class="field-help"></p>

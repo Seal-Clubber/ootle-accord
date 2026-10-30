@@ -5,6 +5,7 @@ import {
 import { createSapientAdapter } from './lib/sapient.mjs';
 import { TESTNET_ACCORDS } from './lib/testnet-accords.mjs';
 import { fundingState, refreshEscrow, canApproveEscrow } from './lib/escrow-funding.mjs';
+import { createAppUpdater } from './lib/app-updates.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -16,6 +17,9 @@ let reviewerCounter = 0;
 let submissionHash = null;
 let feedbackTimer;
 let failedReviewRequestId = null;
+let activeActions = 0;
+let agreementDirty = false;
+let updater;
 
 function notify(message, error = false) {
   clearTimeout(feedbackTimer);
@@ -28,6 +32,7 @@ function notify(message, error = false) {
 
 async function action(button, work, { reviewError = false } = {}) {
   if (button?.disabled) return;
+  activeActions += 1;
   if (button) button.disabled = true;
   if (reviewError) $('#review-error').hidden = true;
   try { return await work(); }
@@ -45,7 +50,10 @@ async function action(button, work, { reviewError = false } = {}) {
       $('#review-error').scrollIntoView({ block: 'nearest' });
     } else notify(message, true);
   }
-  finally { if (button) button.disabled = button.id === 'approve-review' ? !reviewAgreement || !submissionHash || Boolean(approvalUnavailable()) : false; }
+  finally {
+    activeActions -= 1;
+    if (button) button.disabled = button.id === 'approve-review' ? !reviewAgreement || !submissionHash || Boolean(approvalUnavailable()) : false;
+  }
 }
 
 function showView(name, { focus = true } = {}) {
@@ -103,6 +111,8 @@ function syncReviewState() {
     ? 'Approval opens after the remaining ' + fromRawAmount(state.remainingUnits) + ' tTARI is funded. The community reviewer’s vote will be required.'
     : state.approvals + ' of ' + required + ' approvals. ' + (state.requiredReviewerApproved ? 'The required community vote is recorded.' : 'Waiting for the required community vote.');
   $('#review-output').textContent = amount + ' · ' + status;
+  $('#review-fund').hidden = state.fullyFunded || state.expired || state.paid;
+  $('#review-fund').textContent = 'Fund this accord · ' + fromRawAmount(state.remainingUnits) + ' tTARI remaining';
   $('#approve-review').disabled = !submissionHash || Boolean(approvalUnavailable());
 }
 function renderAccordCard(card, state, live = false) {
@@ -116,7 +126,12 @@ function renderAccordCard(card, state, live = false) {
   ui('funded-amount').textContent = fromRawAmount(state.fundedUnits) + ' / ' + fromRawAmount(state.targetUnits) + ' tTARI';
   ui('remaining-amount').textContent = fromRawAmount(state.remainingUnits) + ' tTARI';
   ui('funding-progress').value = Number(BigInt(state.fundedUnits) * 10000n / BigInt(state.targetUnits)) / 100;
-  const closed = state.remainingUnits === '0';
+  const closed = state.remainingUnits === '0' || state.expired || state.paid;
+  ui('fund-accord').disabled = closed;
+  ui('fund-accord').textContent = state.fullyFunded ? 'Fully funded' : closed ? 'Funding closed' : 'Fund this accord';
+  ui('funding-availability').hidden = closed;
+  ui('contribution-limit').textContent = 'Maximum contribution: ' + fromRawAmount(state.remainingUnits) + ' tTARI. The escrow rejects overfunding.';
+  if (closed) { ui('funding-panel').hidden = true; ui('fund-accord').setAttribute('aria-expanded', 'false'); }
   ui('funding-max').disabled = closed;
   ui('contribution-amount').disabled = closed;
   ui('contribution-amount').max = fromRawAmount(state.remainingUnits);
@@ -143,10 +158,18 @@ for (const deployment of TESTNET_ACCORDS) {
   ui('receipts').href = deployment.receiptsPath || './docs/private-escrow-testnet.md';
   ui('contribution-amount').id = 'contribute-' + deployment.agreementId.slice(0,12);
   ui('contribution-label').htmlFor = ui('contribution-amount').id;
+  ui('funding-panel').id = 'funding-' + deployment.agreementId.slice(0,12);
+  ui('fund-accord').setAttribute('aria-controls', ui('funding-panel').id);
   const state = { ...fundingState({ targetUnits: stage.targetUnits, fundedUnits: deployment.recordedFundingUnits, epoch: deployment.recordedEpoch, deadline: stage.refundEpoch }), approvals: deployment.recordedApprovals, requiredReviewerApproved: deployment.recordedRequiredReviewerApproved || false, approved: false, submissionHash: deployment.submissionHash };
   const card = { deployment, node, state, live: null };
   accordCards.set(deployment.agreementId, card);
   renderAccordCard(card, state);
+  ui('fund-accord').addEventListener('click', () => {
+    const panel = ui('funding-panel');
+    panel.hidden = !panel.hidden;
+    ui('fund-accord').setAttribute('aria-expanded', String(!panel.hidden));
+    if (!panel.hidden) ui('contribution-amount').focus({ preventScroll: true });
+  });
   ui('funding-max').addEventListener('click', () => { ui('contribution-amount').value = fromRawAmount(card.state.remainingUnits); });
   ui('refresh-funding').addEventListener('click', event => action(event.currentTarget, async () => {
     renderAccordCard(card, await refreshEscrow(deployment), true);
@@ -222,6 +245,7 @@ $('#agreement-form').addEventListener('submit', event => {
     });
     const id = await agreementId(agreement);
     downloadJson(agreement, `ootleaccord-${id.slice(0, 12)}.json`);
+    agreementDirty = false;
     $('#agreement-output').textContent = `Agreement saved. ID: ${id}. No contract was deployed or funded.`;
     notify('Public agreement saved. Share the file and confirm each reviewer wallet with its owner.');
   });
@@ -286,6 +310,13 @@ async function loadAccord(deployment = activeAccord) {
   return true;
 }
 $('#load-testnet-demo').addEventListener('click', event => action(event.currentTarget, () => loadAccord()));
+$('#review-fund').addEventListener('click', () => {
+  const card = accordCards.get(activeAccord.agreementId);
+  showView('explore', { focus: false });
+  card.node.querySelector('[data-ui="funding-panel"]').hidden = false;
+  card.node.querySelector('[data-ui="fund-accord"]').setAttribute('aria-expanded', 'true');
+  card.node.querySelector('[data-ui="contribution-amount"]').focus();
+});
 $('#download-demo-work').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([activeAccord.work], { type: 'text/plain;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = 'ootleaccord-demo-work.txt'; link.click();
@@ -412,3 +443,36 @@ window.addEventListener('pagehide', () => {
   $('#reviewer-wallet').value = '';
   $('#reviewer-identity').hidden = true;
 });
+
+// New builds appear automatically while browsing Accords. Defer during wallet
+// actions, pending requests, editing, or review so an update cannot interrupt them.
+$('#agreement-form').addEventListener('input', () => { agreementDirty = true; });
+$('#agreement-form').addEventListener('click', event => {
+  if (event.target.closest('.remove-stage,.remove-reviewer,.add-reviewer,#add-stage,.use-wallet')) agreementDirty = true;
+});
+function updateSafe() {
+  const state = wallet.getState();
+  return document.visibilityState === 'visible' && activeActions === 0 && !state.requestId &&
+    !['connecting', 'awaiting-approval', 'submitting', 'confirming'].includes(state.status) && !$('#wallet-dialog').open;
+}
+updater = createAppUpdater({
+  currentVersion: $('meta[name="ootleaccord-build"]')?.content,
+  getUrl: () => location.href,
+  canReload: manual => updateSafe() && (manual || (location.hash === '#explore' && !agreementDirty &&
+    !$('#review-work').files.length &&
+    !$$('[data-ui="funding-panel"]').some(panel => !panel.hidden) &&
+    !document.activeElement?.matches('input,textarea,select,[contenteditable]'))),
+  navigate: url => location.replace(url),
+  onUpdate: version => { $('#app-update').hidden = !version; },
+});
+$('#app-update-apply').addEventListener('click', () => {
+  if (!updateSafe()) return notify('Finish the current wallet request and close the Sapient panel before updating.', true);
+  // Explicit updates preserve the current route; the notice explains draft loss.
+  updater.apply({ manual: true });
+});
+function checkAppUpdate() { if (document.visibilityState === 'visible') void updater.check(); }
+checkAppUpdate();
+window.addEventListener('focus', checkAppUpdate);
+window.addEventListener('pageshow', checkAppUpdate);
+document.addEventListener('visibilitychange', checkAppUpdate);
+setInterval(checkAppUpdate, 30000);

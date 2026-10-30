@@ -22,7 +22,7 @@ Open [http://127.0.0.1:4173/](http://127.0.0.1:4173/). The local server binds on
 
 The interface has three tabs:
 
-- **Accords:** the funded Esmeralda escrow, remaining capacity, Max control, approval threshold and an explicit balance refresh.
+- **Accords:** both Esmeralda escrows, remaining capacity, a visible Fund this accord control with Max, approval threshold and an explicit balance refresh. Private Sapient payment is visibly unavailable; the control opens the contribution panel without creating a transaction.
 - **Create:** milestone terms, reviewer wallets and approval percentages; saves a public agreement file.
 - **Review:** the work and acceptance terms, with Sapient submission and approval.
 
@@ -52,11 +52,13 @@ node scripts/build.mjs
 
 The private escrow update adds six real Tari-engine escrow tests and an additional real encrypted funding/payout test, alongside the existing five quorum-engine tests and JavaScript suite. Publication, creation, shielding, private funding, work submission and two test votes committed on Esmeralda. The required installed-Sapient community approval is still outstanding. See the [verification ledger](docs/verification.md).
 
-`build.mjs` creates a static `dist/` directory with local app assets and documentation. It excludes the preview server, dotfiles and JSON exports. The build does not publish or deploy anything. When hosting, apply the restrictive response policy in [app/server.mjs](app/server.mjs) and verify that the installed wallet can inject its provider under that policy. Assets and fonts are local; the application has no analytics or remote font service.
+`build.mjs` creates a static `dist/` directory with local app assets and documentation. It excludes the preview server, dotfiles and JSON exports, and generates a public `version.json` containing only the build digest. The build does not publish or deploy anything. When hosting, apply the restrictive response policy in [app/server.mjs](app/server.mjs) and verify that the installed wallet can inject its provider under that policy. Assets and fonts are local; the application has no analytics or remote font service.
 
 ## GitHub Pages
 
 The `Publish GitHub Pages` workflow tests the code, builds `dist/`, and deploys it on every push to `main`. It can also be started manually from Actions. Repository Settings → Pages uses **GitHub Actions** as the publishing source.
+
+Published builds check their same-origin public version manifest on startup, return to the tab, and every 30 seconds while visible. A new build automatically loads fresh versioned HTML while browsing Accords with no edits or wallet action in progress. Updates defer during review, draft editing, an open contribution panel, or an unresolved wallet request; an update notice allows a later explicit reload. This does not poll balances or create wallet requests. Tabs running older code need one ordinary refresh to install this update checker; subsequent deployments are detected automatically.
 
 All application assets use relative paths so the project works at `/ootle-accord/`. A page-level content security policy and no-referrer policy travel with the static HTML. GitHub Pages does not reproduce the preview server's custom HTTP headers. Recovery files are decrypted locally; GitHub serves the application files and can observe ordinary visitor connection metadata. General private donations through Sapient remain disabled; the native-client-funded escrow is real.
 

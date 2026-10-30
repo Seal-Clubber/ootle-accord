@@ -19,6 +19,7 @@ async function fixture(t) {
   await writeFile(resolve(appDir, '.env'), 'PRIVATE=test-value');
   await writeFile(resolve(appDir, 'server.mjs'), 'server source');
   await writeFile(resolve(appDir, 'private.recovery.json'), '{"outputMask":"synthetic"}');
+  await writeFile(resolve(appDir, 'version.json'), '{"version":"0123456789ab"}');
   await writeFile(resolve(directory, 'outside.css'), 'body{color:red}');
   await writeFile(resolve(docsDir, 'privacy.md'), '# Privacy\n<script>untrusted()</script>');
   const server = createAppServer({ appDir, docsDir });
@@ -53,7 +54,7 @@ test('preview serves HTML/modules and plain-text docs under a restrictive local 
   const page = await read(port, '/');
   assert.equal(page.status, 200);
   assert.match(page.headers['content-type'], /^text\/html/);
-  assert.match(page.headers['content-security-policy'], /connect-src https:\/\/ootle-indexer-a\.tari\.com;/);
+  assert.match(page.headers['content-security-policy'], /connect-src 'self' https:\/\/ootle-indexer-a\.tari\.com;/);
   assert.match(page.headers['content-security-policy'], /script-src 'self'/);
   assert.match(page.headers['content-security-policy'], /font-src 'self'/);
   assert.equal(page.headers['referrer-policy'], 'no-referrer');
@@ -61,6 +62,10 @@ test('preview serves HTML/modules and plain-text docs under a restrictive local 
   const module = await read(port, '/main.mjs?version=1');
   assert.equal(module.status, 200);
   assert.match(module.headers['content-type'], /^text\/javascript/);
+  const manifest = await read(port, '/version.json?check=123');
+  assert.equal(manifest.status, 200);
+  assert.match(manifest.headers['content-type'], /^application\/json/);
+  assert.deepEqual(JSON.parse(manifest.body), { version: '0123456789ab' });
   const docs = await read(port, '/docs/privacy.md');
   assert.equal(docs.status, 200);
   assert.match(docs.headers['content-type'], /^text\/plain/);

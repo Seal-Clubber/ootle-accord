@@ -48,10 +48,15 @@ const version = digest.digest('hex').slice(0, 12);
 for (const asset of assets) {
   if (!['.html', '.mjs', '.css'].includes(extname(asset))) continue;
   let content = await readFile(asset, 'utf8');
-  if (extname(asset) === '.html') content = content.replace(/((?:src|href)=["'])(\.\/?[^"']+\.(?:mjs|css|svg))(["'])/g, `$1$2?v=${version}$3`);
+  if (extname(asset) === '.html') {
+    content = content.replace(/((?:src|href)=["'])(\.\/?[^"']+\.(?:mjs|css|svg))(["'])/g, `$1$2?v=${version}$3`);
+    content = content.replace('</head>', `  <meta name="ootleaccord-build" content="${version}">\n</head>`);
+  }
   if (extname(asset) === '.mjs') content = content.replace(/(\bfrom\s+["'])(\.[^"']+\.mjs)(["'])/g, `$1$2?v=${version}$3`);
   if (extname(asset) === '.css') content = content.replace(/(url\(["'])(\.[^"']+\.css)(["']\))/g, `$1$2?v=${version}$3`);
   await writeFile(asset, content);
 }
 await writeFile(resolve(output, '.nojekyll'), '');
+// This generated public manifest contains only the app content digest, never wallet data.
+await writeFile(resolve(output, 'version.json'), JSON.stringify({ version }) + '\n');
 process.stdout.write(`Built ${copied} static files in dist/. No credentials or recovery files are included.\n`);
