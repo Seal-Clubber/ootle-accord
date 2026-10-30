@@ -1,3 +1,17 @@
+## Stock Sapient deposits and memo recovery — 30 October 2026
+
+The new v5 escrow is published and funded **7/10 tTARI** using the unchanged Sapient SDK 0.1.30. Publication, creation, isolated test-account bootstrap, exact private coin preparation, escrow funding and creator work all finalized with Commit. Component version 2 at epoch 12739 records zero votes and 3 tTARI remaining. The community reviewer is mandatory and approval remains closed until full funding. The exact deposit was inspected before broadcast to exclude the donor base key/account. See [committed receipts, fees and privacy boundaries](sapient-escrow-testnet.md).
+
+The encrypted zero-value refund memo was recovered with a fresh SDK ledger and the same isolated seed, then matched to the actual on-chain amount, refund key and public nonce. No browser recovery file is required. This is a structured encrypted receipt, rather than treating arbitrary memo text as proof of a donation. The app requests private view access only through explicit funding/memo actions; decrypted records stay in memory.
+
+The three new lifecycle tests passed against source-compiled escrow code and the exact optimized deployed binary, including the CI-pinned Rust 1.97.1 toolchain. A separate native engine test verifies memo decryption and the one-micro-TARI round trip. The JavaScript suite passed 97 tests with one Windows symlink-permission skip. Coverage includes actual browser WASM, artifact integrity, precise coin selection, cap/stale checks, account changes, memo lookup and public-return duplicate guards. Installed Chrome-extension approval and live payout/refund remain unexecuted. The real 7 tTARI stays locked.
+
+The current Web Store release 0.6.14 was checked against its exact locked SDK 0.1.26: the required provider APIs exist, its deposit/private-fee routines match the 0.1.30 routines used live, and its fresh ledger recovered the actual escrow refund memo. No custom wallet build or additional transfer was needed for that check.
+
+The UI shows the new accord first, stock-Sapient amount/Max and funding controls, encrypted memo recovery, and older tests in a collapsed section. Public chain state refreshes automatically without wallet permission prompts; amount input survives a balance refresh. There is no intermediate app funding wallet or Sapient fork.
+
+The entries below are historical; their funding restrictions refer to earlier protocols and deployments.
+
 ## Second accord funded 7/10 — 30 October 2026
 
 A second immutable component reuses the qualified escrow template. Constructor, public shielding bootstrap, private-input 7 tTARI funding and work submission committed on Esmeralda. The native client dry-run checked a 10 tTARI target, 7 funded and 3 remaining before broadcasting its saved signed envelope. The final checkpoint is version 2 at epoch 12737, with zero votes, the community reviewer required and paid false. The first escrow was not spent to fund this one. See [the second accord's receipts](partial-escrow-testnet.md).

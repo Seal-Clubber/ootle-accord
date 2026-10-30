@@ -1,15 +1,19 @@
 import {
-  QUORUM_AGREEMENT_SCHEMA, requiredApprovals, sha256Hex, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
+  QUORUM_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA, requiredApprovals, sha256Hex, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
   toRawAmount, fromRawAmount,
 } from './lib/accord.mjs';
 import { createSapientAdapter } from './lib/sapient.mjs';
 import { TESTNET_ACCORDS } from './lib/testnet-accords.mjs';
 import { fundingState, refreshEscrow, canApproveEscrow } from './lib/escrow-funding.mjs';
 import { createAppUpdater } from './lib/app-updates.mjs';
+import { wireFundingCard } from './lib/funding-ui.mjs';
+import { createReturnClient } from './lib/escrow-returns.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 const wallet = createSapientAdapter();
+let returns;
+try { returns = createReturnClient(); } catch { /* Funding remains usable if return tracking storage is blocked. */ }
 let reviewerIdentity = null;
 let reviewAgreement = null;
 let stageCounter = 0;
@@ -132,10 +136,6 @@ function renderAccordCard(card, state, live = false) {
   ui('funding-availability').hidden = closed;
   ui('contribution-limit').textContent = 'Maximum contribution: ' + fromRawAmount(state.remainingUnits) + ' tTARI. The escrow rejects overfunding.';
   if (closed) { ui('funding-panel').hidden = true; ui('fund-accord').setAttribute('aria-expanded', 'false'); }
-  ui('funding-max').disabled = closed;
-  ui('contribution-amount').disabled = closed;
-  ui('contribution-amount').max = fromRawAmount(state.remainingUnits);
-  ui('contribution-amount').value = closed ? '0' : '';
   ui('funding-label').textContent = state.paid ? 'PAID' : state.expired ? 'FUNDING CLOSED' : state.fullyFunded ? 'FULLY FUNDED' : 'FUNDING OPEN';
   ui('funding-note').textContent = state.paid ? 'Payout completed.' : state.expired ? 'The deadline has passed. Unpaid pledges are eligible for private refunds.' : state.fullyFunded ? 'Goal reached. Further funding is blocked by the escrow.' : fromRawAmount(state.remainingUnits) + ' tTARI remaining. Approval opens once the goal is fully funded; the community reviewer is required.';
   ui('explore-approvals').textContent = state.approvals + ' of ' + required + ' required';
@@ -143,6 +143,7 @@ function renderAccordCard(card, state, live = false) {
   ui('explore-checkpoint').textContent = live
     ? 'Refreshed from the Esmeralda indexer · epoch ' + state.epoch + ' · ' + new Date(state.checkedAt).toLocaleTimeString() + '.'
     : 'Recorded checkpoint at chain epoch ' + deployment.recordedEpoch + '. Refresh for current funding and votes.';
+  card.controls?.render();
   if (activeAccord.agreementId === deployment.agreementId) syncReviewState();
 }
 for (const deployment of TESTNET_ACCORDS) {
@@ -160,17 +161,30 @@ for (const deployment of TESTNET_ACCORDS) {
   ui('contribution-label').htmlFor = ui('contribution-amount').id;
   ui('funding-panel').id = 'funding-' + deployment.agreementId.slice(0,12);
   ui('fund-accord').setAttribute('aria-controls', ui('funding-panel').id);
+  const stock = deployment.agreement.schema === SAPIENT_ESCROW_SCHEMA;
+  ui('funding-availability').textContent = stock ? 'Fund directly from stock Sapient. Refund details are saved in an encrypted wallet memo.' : 'Earlier immutable escrow. Stock Sapient deposits are supported by the latest accord above.';
+  ui('privacy-note').textContent = stock
+    ? 'Contribution amounts, the remaining counter and reviewer votes are public. The deposit uses one-time keys and omits the donor base wallet address. Wallet preparation and transaction history can link activity. Return memos are encrypted to the wallet; reading them requires a private view grant. Four reviewers are deployer-operated test wallets.'
+    : 'Earlier private-output escrow: encrypted transfer values, with contribution sizes inferable from public total changes. Transaction links and timing remain visible. Four reviewers are deployer-operated test wallets.';
+  if (!stock) {
+    ui('funding-disclosure').textContent = 'This earlier escrow cannot accept stock Sapient deposits. Use the latest accord above.';
+    ui('funding-fee').hidden = true; ui('funding-view-note').hidden = true;
+  }
   const state = { ...fundingState({ targetUnits: stage.targetUnits, fundedUnits: deployment.recordedFundingUnits, epoch: deployment.recordedEpoch, deadline: stage.refundEpoch }), approvals: deployment.recordedApprovals, requiredReviewerApproved: deployment.recordedRequiredReviewerApproved || false, approved: false, submissionHash: deployment.submissionHash };
   const card = { deployment, node, state, live: null };
   accordCards.set(deployment.agreementId, card);
   renderAccordCard(card, state);
+  card.controls = wireFundingCard({ card, wallet, returns, notify,
+    activity: delta => { activeActions += delta; },
+    refresh: async () => { const fresh = await refreshEscrow(deployment); renderAccordCard(card, fresh, true); return fresh; },
+  });
+  card.controls.render();
   ui('fund-accord').addEventListener('click', () => {
     const panel = ui('funding-panel');
     panel.hidden = !panel.hidden;
     ui('fund-accord').setAttribute('aria-expanded', String(!panel.hidden));
     if (!panel.hidden) ui('contribution-amount').focus({ preventScroll: true });
   });
-  ui('funding-max').addEventListener('click', () => { ui('contribution-amount').value = fromRawAmount(card.state.remainingUnits); });
   ui('refresh-funding').addEventListener('click', event => action(event.currentTarget, async () => {
     renderAccordCard(card, await refreshEscrow(deployment), true);
     notify('Balance and approvals refreshed from Esmeralda.');
@@ -178,7 +192,7 @@ for (const deployment of TESTNET_ACCORDS) {
   ui('explore-open-accord').addEventListener('click', event => action(event.currentTarget, async () => {
     if (await loadAccord(deployment)) showView('review');
   }));
-  $('#accord-list').append(node);
+  $(stock ? '#accord-list' : '#earlier-accord-list').append(node);
 }
 
 // Agreements use reviewer wallet signatures.
@@ -405,7 +419,7 @@ wallet.subscribe(state => {
     `Network: ${state.network}`, `Status: ${state.status}`,
     `Account: ${state.account}`,
     `Private fees: ${caps?.supportsPrivateFees ? 'supported' : 'unavailable'}`,
-    'Private funding: unavailable',
+    `Escrow deposits: ${caps?.stealthRedeemPrivateFee ? 'supported · public contribution amounts' : 'unavailable for this wallet version/account'}`,
   ] : [`Status: ${state.status}`, 'Connect to submit work or approve.'];
   if (state.requestId) lines.push(`Existing request: ${state.requestId}`);
   if (state.error) lines.push(state.error);
@@ -453,6 +467,7 @@ $('#agreement-form').addEventListener('click', event => {
 function updateSafe() {
   const state = wallet.getState();
   return document.visibilityState === 'visible' && activeActions === 0 && !state.requestId &&
+    !returns?.getPending() &&
     !['connecting', 'awaiting-approval', 'submitting', 'confirming'].includes(state.status) && !$('#wallet-dialog').open;
 }
 updater = createAppUpdater({
@@ -461,6 +476,7 @@ updater = createAppUpdater({
   canReload: manual => updateSafe() && (manual || (location.hash === '#explore' && !agreementDirty &&
     !$('#review-work').files.length &&
     !$$('[data-ui="funding-panel"]').some(panel => !panel.hidden) &&
+    !$$('[data-ui="returns-panel"]').some(panel => panel.open) && !returns?.getPending() &&
     !document.activeElement?.matches('input,textarea,select,[contenteditable]'))),
   navigate: url => location.replace(url),
   onUpdate: version => { $('#app-update').hidden = !version; },
@@ -476,3 +492,20 @@ window.addEventListener('focus', checkAppUpdate);
 window.addEventListener('pageshow', checkAppUpdate);
 document.addEventListener('visibilitychange', checkAppUpdate);
 setInterval(checkAppUpdate, 30000);
+
+// Refresh public chain state without touching Sapient or overwriting contribution inputs.
+let refreshingAccords = false;
+async function refreshAccords() {
+  if (document.visibilityState !== 'visible' || refreshingAccords || activeActions > 0) return;
+  refreshingAccords = true;
+  try {
+    await Promise.allSettled([...accordCards.values()].map(async card => {
+      const fresh = await refreshEscrow(card.deployment);
+      renderAccordCard(card, fresh, true);
+    }));
+  } finally { refreshingAccords = false; }
+}
+void refreshAccords();
+window.addEventListener('focus', refreshAccords);
+document.addEventListener('visibilitychange', refreshAccords);
+setInterval(refreshAccords, 30000);

@@ -1,5 +1,7 @@
 # Second community accord — 7/10 tTARI
 
+> Earlier immutable v4 test. Use the [latest stock-Sapient accord](sapient-escrow-testnet.md) for direct funding and encrypted memo recovery.
+
 The second accord holds **7 tTARI against a 10 tTARI target**, leaving **3 tTARI**. This is a committed private-output Esmeralda escrow, not a local simulation. The first funded accord remains separate in the app.
 
 Recorded at epoch **12737**, component version **2**. The creator's work fingerprint is submitted. No reviewer votes are recorded. **Approval opens only after 10/10 funding.** Payout then requires three of five reviewers, including the required community reviewer, followed by the creator's separate claim. Four reviewers are operated by the deployer and are not independent people. No payout has been made.

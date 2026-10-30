@@ -1,0 +1,22 @@
+[package]
+name = "accord-sapient-escrow-template"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tari_template_lib = "=0.35.0"
+tari_bor = "=0.16.5"
+
+[dev-dependencies]
+tari_template_test_tooling = "=0.47.0"
+accord-private-client = { path = "../accord-private-client" }
+accord-sapient-client = { path = "../accord-sapient-client" }
+tari_crypto = "=0.24.0"
+ootle_byte_type = { version = "=0.17.0", features = ["crypto"] }
+rand = "0.10"
+tari_ootle_wallet_crypto = "=0.48.0"
+

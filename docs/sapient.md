@@ -1,4 +1,4 @@
-> **Historical HTLC reference.** The current funded v4 template uses private native outputs, a public exact aggregate and mandatory quorum review. See [current escrow design, limits and committed receipts](private-escrow-testnet.md). The older secret-based behavior below applies only to previous handoffs and recovery files.
+> **Historical HTLC reference.** The latest v5 escrow supports stock Sapient deposits with explicit public contribution amounts and encrypted refund memos. See [current design and committed evidence](sapient-escrow-testnet.md). The native HTLC funding restriction below still applies to that older protocol; v5 uses a different existing provider method.
 
 # Sapient integration
 

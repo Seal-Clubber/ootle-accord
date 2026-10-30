@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://ootle-indexer-a.tari.com; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://ootle-indexer-a.tari.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OotleAccord — community milestone agreements and Sapient review on Tari Esmeralda.">
@@ -22,11 +22,12 @@
   <div class="app-shell">
     <nav aria-label="Workspace"><button class="nav-item active" data-view="explore" aria-current="page">Accords</button><button class="nav-item" data-view="create">Create</button><button class="nav-item" data-view="review">Review</button></nav>
     <main id="main" tabindex="-1">
-      <p class="app-status">Esmeralda testnet · Private-output escrow · Public funding total</p>
+      <p class="app-status">Esmeralda testnet · On-chain escrow · Public contribution amounts</p>
       <div id="app-update" class="update-notice" role="status" hidden><p>An app update is ready. Save any unsaved changes before updating.</p><button type="button" id="app-update-apply" class="button button-outline">Update app</button></div>
       <section class="view" id="view-explore" aria-labelledby="explore-title">
         <div class="section-heading"><div><h1 id="explore-title">Accords</h1><p>Milestone agreements on Esmeralda.</p></div><button class="button button-primary" data-view="create">New accord</button></div>
         <div id="accord-list"></div>
+        <details id="earlier-accords"><summary>Earlier test accords</summary><div id="earlier-accord-list"></div></details>
         <template id="accord-card-template">
         <article class="surface accord-card">
           <div class="section-heading"><span class="badge" data-ui="funding-label">PRIVATE ESCROW</span><span class="muted">10 tTARI test</span></div>
@@ -37,10 +38,21 @@
           <div class="accord-stats"><div><span>Reviewers</span><strong data-ui="explore-reviewer-count"></strong></div><div><span>Approval threshold</span><strong data-ui="explore-threshold"></strong></div><div><span>Recorded votes</span><strong data-ui="explore-approvals"></strong></div></div>
           <p data-ui="explore-checkpoint" class="field-help"></p>
           <div class="card-actions"><button type="button" data-ui="fund-accord" class="button button-primary" aria-expanded="false">Fund this accord</button><button type="button" data-ui="explore-open-accord" class="button button-outline">Review work</button><button type="button" data-ui="refresh-funding" class="button button-outline">Refresh balance</button><a data-ui="receipts" href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div>
-          <p data-ui="funding-availability" class="field-help">Private funding through Sapient is not available yet.</p>
-          <section data-ui="funding-panel" class="funding-panel" hidden><h3>Fund this accord</h3><p class="field-help">Private funding through Sapient is not available yet. You can choose an amount, but payment is disabled.</p><label data-ui="contribution-label">Contribution (tTARI)</label><div class="inline-actions"><input data-ui="contribution-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal"><button type="button" data-ui="funding-max" class="button button-outline">Max</button></div><p data-ui="contribution-limit" class="field-help"></p><button type="button" class="button button-outline" disabled>Pay privately in Sapient — unavailable</button></section>
+          <p data-ui="funding-availability" class="field-help"></p>
+          <section data-ui="funding-panel" class="funding-panel" hidden>
+            <h3>Fund this accord</h3>
+            <p data-ui="funding-disclosure" class="field-help">Your contribution amount is public. The deposit uses one-time keys and leaves out your wallet address. Transaction history and timing can still link activity.</p>
+            <label data-ui="contribution-label">Contribution (tTARI)</label>
+            <div class="inline-actions"><input data-ui="contribution-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal"><button type="button" data-ui="funding-max" class="button button-outline">Max</button></div>
+            <p data-ui="contribution-limit" class="field-help"></p>
+            <p data-ui="funding-fee" class="field-help">Private fee: up to 0.1 tTARI per transaction. If needed, prepare an exact coin with a private transfer to yourself in Sapient, then approve the deposit separately.</p>
+            <p data-ui="funding-view-note" class="field-help">Checking coins requests access to your private coin amounts and memos. They stay in this tab’s memory. Your seed and wallet keys stay in Sapient.</p>
+            <div class="inline-actions"><button type="button" data-ui="funding-check" class="button button-outline">Check coins in Sapient</button><button type="button" data-ui="funding-prepare" class="button button-outline" hidden>Prepare exact coin in Sapient</button><button type="button" data-ui="funding-pay" class="button button-primary" disabled>Fund in Sapient</button></div>
+            <output data-ui="funding-status" class="form-output" role="status" aria-live="polite"></output>
+          </section>
+          <details data-ui="returns-panel"><summary>My refunds &amp; payout</summary><p class="field-help">Find your encrypted return memo in Sapient. Eligible returns go to the wallet’s fixed private destination; the escrow pays the return fee.</p><button type="button" data-ui="returns-find" class="button button-outline">Find my memos in Sapient</button><div data-ui="returns-list"></div><button type="button" data-ui="returns-check" class="button button-outline" hidden>Check submitted return</button><output data-ui="returns-status" class="form-output" role="status" aria-live="polite"></output></details>
           <p class="field-help">Refresh contacts the Tari indexer with this public contract ID. No wallet data is sent.</p>
-          <details><summary>Privacy &amp; contract details</summary><code data-ui="explore-component"></code><p class="field-help">Transfer amounts are encrypted and signing keys are one-time. Changes in the public total reveal contribution sizes. Transaction links and timing remain visible. Four reviewers are deployer-operated test wallets.</p></details>
+          <details><summary>Privacy &amp; contract details</summary><code data-ui="explore-component"></code><p data-ui="privacy-note" class="field-help"></p></details>
         </article>
         </template>
       </section>

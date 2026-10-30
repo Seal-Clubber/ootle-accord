@@ -1,9 +1,13 @@
 // Provider contract: chironbuilds/tari-wallet/src/lib/messages.ts and
-// docs/integration/provider-api.md. No keys, view grants, balances, or telemetry.
-import { QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, validateAgreement, agreementId } from './accord.mjs';
+// docs/integration/provider-api.md. Wallet keys remain in Sapient. Explicit
+// funding/return actions request private view access; no private data is persisted.
+import { QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA, NATIVE_TARI_RESOURCE, validateAgreement, agreementId, rawUnits } from './accord.mjs';
 import { cborReviewerIndex, cborSubmissionHash } from './review-args.mjs';
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
 import { REVIEW_DEPLOYMENTS, REVIEW_DEPENDENCIES } from './review-deployments.mjs';
+import { fundingCoins, selectFundingCoins, assertLivePrivateCoin } from './stock-funding.mjs';
+import { makeFundingReturn, makeFundingArgs, restoreMemoReceipt } from './stock-client.mjs';
+import { refreshEscrow } from './escrow-funding.mjs';
 
 const UINT64_MAX = (1n << 64n) - 1n;
 const RESOURCE = /^resource_[a-f0-9]{64}$/i;
@@ -12,8 +16,12 @@ const UNKNOWN_CREATE = 'ootleaccord:unknown-create-outcome';
 
 /** Checked against the actual provider call, not just the SDK's broader capabilities. */
 export const SAPIENT_PRIVACY_REPORT = Object.freeze({
+  // Native HTLC funding is a different protocol; it remains disabled here.
   fundingSource: 'revealed',
   privateFundingSupported: false,
+  stockEscrowFundingSupported: true,
+  stockEscrowAmountVisibility: 'public',
+  stockEscrowDepositIdentity: 'one-time keys',
   source: 'https://github.com/chironbuilds/tari-wallet/blob/master/src/background/index.ts',
   sdkSource: 'https://github.com/chironbuilds/ootle-sdk-ts/blob/master/src/wallet.ts',
 });
@@ -147,6 +155,8 @@ export function createSapientAdapter({
   pollIntervalMs = 700,
   requestTimeoutMs = 180000,
   restoreTimeoutMs = 5000,
+  fundingCrypto = { makeFundingReturn, makeFundingArgs },
+  escrowReader = refreshEscrow,
 } = {}) {
   let provider = initialProvider;
   let sessionStorage = storage;
@@ -312,15 +322,17 @@ export function createSapientAdapter({
     throw new SapientError('Still waiting for Sapient. The request has been kept; resume it before creating another payment.', 'PENDING_TIMEOUT');
   }
 
-  async function transact(operation, required, { signal } = {}, validateResult) {
+  async function transact(operation, required, { signal, expectedGeneration } = {}, validateResult) {
     assertAlive();
     if (restorePromise) await restorePromise;
     assertAlive();
+    if (expectedGeneration !== undefined) checkEpoch(expectedGeneration, signal);
     if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
     if (requestId) throw new SapientError('A previous Sapient request needs attention. Resume it if it is still pending, or use Clear failed request after checking that Sapient marks it failed or rejected.', 'PENDING_REQUEST');
     busy = true;
     try {
       const epoch = await connection(required);
+      if (expectedGeneration !== undefined) checkEpoch(expectedGeneration, signal);
       checkEpoch(epoch, signal);
       // A lost create response leaves no ID to look up. Keep a privacy-safe marker first;
       // never open another spend request automatically after this ambiguous outcome.
@@ -445,6 +457,147 @@ export function createSapientAdapter({
     fundMilestone() {
       throw new SapientError('Stock Sapient funds native HTLCs from revealed balances. Private milestone funding is disabled until the wallet exposes verified private-source support.', 'PRIVATE_ESCROW_UNAVAILABLE');
     },
+    /** Explicit, separate read grant. Coin summaries stay in memory on this page. */
+    async inspectFundingCoins() {
+      assertAlive();
+      if (restorePromise) await restorePromise;
+      if (busy || requestId) throw new SapientError('Finish the existing wallet request before reading funding coins.', 'BUSY');
+      busy = true;
+      try {
+        const epoch = await connection(['privateBalanceView', 'stealthRedeemPrivateFee', 'walletAddress']);
+        let grant = await call('tari_getViewAccess');
+        if (grant?.granted !== true) grant = await call('tari_requestViewAccess');
+        checkEpoch(epoch);
+        if (grant?.granted !== true) throw new SapientError('Reading private coins was declined. No payment was created.', 'VIEW_ACCESS_DECLINED');
+        const records = await call('tari_getShieldedOutputs', { resourceAddress: NATIVE_TARI_RESOURCE });
+        checkEpoch(epoch);
+        const coins = fundingCoins(records);
+        const live = [];
+        // Bound liveness reads. A transient failure excludes a coin only from
+        // this quote; never mark a private holding spent based on a read error.
+        for (const coin of coins.slice(0, 64)) {
+          try {
+            const publicKey = assertLivePrivateCoin(await call('tari_getSubstate', { substateId: `utxo_${NATIVE_TARI_RESOURCE.slice(9)}_${coin.commitment}` }));
+            live.push(Object.freeze({ ...coin, publicKey }));
+          } catch { /* unreadable, non-key or spent: don't select it */ }
+          checkEpoch(epoch);
+        }
+        return Object.freeze(live);
+      } catch (error) { throw fail(error); }
+      finally { busy = false; }
+    },
+    async prepareFundingCoin({ amount, maxFee = '100000' } = {}, options) {
+      positiveUnits(amount, 'Contribution'); validateFee(maxFee);
+      if (!snapshot.account) throw new SapientError('Connect Sapient first.', 'NOT_CONNECTED');
+      const epoch = await connection(['privateSpend', 'walletAddress']);
+      const address = await call('tari_getWalletAddress');
+      reviewerKeyFromWallet(address);
+      checkEpoch(epoch, options?.signal);
+      const result = await transact({ kind: 'sendPrivately', resourceAddress: NATIVE_TARI_RESOURCE,
+        recipientWalletAddress: address, amount, maxFee, minimumValuePromise: '0',
+        feeType: 'private', enforceFeeType: true }, ['privateSpend','walletAddress'], { ...options, expectedGeneration: epoch }, result => {
+        hex32(result.recipientCommitment, 'Prepared coin commitment');
+      });
+      // A transfer to yourself must be registered as an incoming private coin.
+      // Bookkeeping failure is not a failed payment and must never cause a resend.
+      let registered = false;
+      try { checkEpoch(epoch); await call('tari_claimPrivatePayment', { resourceAddress: NATIVE_TARI_RESOURCE, commitment: result.recipientCommitment }); registered = true; }
+      catch { /* wallet scan can recover it; preserve the successful receipt */ }
+      return Object.freeze({ ...result, registered });
+    },
+    async fundEscrow({ deployment, amount, expectedTotal, sourceCommitment, feeCommitment, maxFee = '100000' } = {}, options) {
+      assertAlive();
+      if (restorePromise) await restorePromise;
+      if (!snapshot.account) throw new SapientError('Connect Sapient first.', 'NOT_CONNECTED');
+      const operationGeneration = generation;
+      const terms = validateAgreement(deployment?.agreement);
+      if (terms.schema !== SAPIENT_ESCROW_SCHEMA || terms.milestones.length !== 1) throw new SapientError('This escrow does not support stock Sapient deposits.', 'UNSUPPORTED_FUNDING_PROTOCOL');
+      const id = await agreementId(terms);
+      const stage = terms.milestones[0];
+      if (id !== deployment.agreementId || REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stage.id}`] !== deployment.component) throw new SapientError('This escrow is not deployed and verified.', 'FUNDING_NOT_DEPLOYED');
+      positiveUnits(amount, 'Contribution'); validateFee(maxFee);
+      rawUnits(expectedTotal, 'Funding counter', { allowZero: true });
+      hex32(sourceCommitment, 'Contribution coin'); hex32(feeCommitment, 'Fee coin');
+      if (sourceCommitment === feeCommitment) throw new SapientError('Contribution and fee must use different private coins.', 'INVALID_FUNDING_COINS');
+      const state = await escrowReader(deployment);
+      checkEpoch(operationGeneration, options?.signal);
+      if (state.paid || state.expired || state.fundedUnits !== expectedTotal || BigInt(amount) > BigInt(state.remainingUnits) || BigInt(state.remainingUnits) === 0n) throw new SapientError('Funding changed or closed. Refresh the remaining amount before paying.', 'FUNDING_CHANGED');
+      const coins = await api.inspectFundingCoins();
+      checkEpoch(operationGeneration, options?.signal);
+      const selected = selectFundingCoins(coins, amount, maxFee);
+      // Check the specific approved choices, rather than silently substitute coins.
+      const source = coins.find(c => c.commitment === sourceCommitment);
+      const fee = coins.find(c => c.commitment === feeCommitment);
+      if (!selected.source || source?.amount !== amount || !fee || BigInt(fee.amount) <= BigInt(maxFee)) throw new SapientError(selected.reason || 'Selected private coins changed. Refresh before paying.', 'INVALID_FUNDING_COINS');
+      const epoch = await connection(['stealthRedeemPrivateFee','walletAddress']);
+      const address = await call('tari_getWalletAddress'); reviewerKeyFromWallet(address);
+      checkEpoch(epoch, options?.signal);
+      const note = await fundingCrypto.makeFundingReturn(address, amount);
+      const payload = await fundingCrypto.makeFundingArgs(note, expectedTotal, address, amount, id, source.publicKey);
+      checkEpoch(epoch, options?.signal);
+      const result = await transact({ kind: 'redeemStealthOutputWithPrivateFee', resourceAddress: NATIVE_TARI_RESOURCE,
+        commitmentHex: sourceCommitment, revealedAmount: amount,
+        followUpInstructions: [{ CallMethod: { call: { Address: deployment.component }, method: 'fund', args: payload.args } }],
+        feeResourceAddress: NATIVE_TARI_RESOURCE, feeCommitmentHex: feeCommitment, maxFee,
+        relatedComponents: [deployment.component] }, ['stealthRedeemPrivateFee'], { ...options, expectedGeneration: operationGeneration }, result => {
+          hex32(result.transactionId, 'Funding transaction'); hex32(result.feeChangeCommitment, 'Private fee change');
+        });
+      let feeChangeRegistered = false;
+      try { checkEpoch(epoch); await call('tari_claimPrivatePayment', { resourceAddress: NATIVE_TARI_RESOURCE, commitment: result.feeChangeCommitment }); feeChangeRegistered = true; }
+      catch { /* the successful funding receipt remains authoritative */ }
+      let receiptRegistered = false;
+      try { checkEpoch(epoch); await call('tari_claimPrivatePayment', { resourceAddress: NATIVE_TARI_RESOURCE, commitment: payload.receiptCommitment }); receiptRegistered = true; }
+      catch { /* The live zero-value receipt remains recoverable from the chain. */ }
+      return Object.freeze({ ...result, receiptCommitment: payload.receiptCommitment, feeChangeRegistered, receiptRegistered });
+    },
+    async loadReturnReceipts(deployment) {
+      assertAlive(); if (restorePromise) await restorePromise;
+      if (busy || requestId) throw new SapientError('Finish the existing wallet request before reading return memos.', 'BUSY');
+      const id = await agreementId(deployment?.agreement);
+      const stage = deployment.agreement.milestones[0];
+      if (deployment.agreement.schema !== SAPIENT_ESCROW_SCHEMA || id !== deployment.agreementId || REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stage.id}`] !== deployment.component) throw new SapientError('This escrow is not verified.', 'FUNDING_NOT_DEPLOYED');
+      busy = true;
+      try {
+        const epoch = await connection(['privateBalanceView','walletAddress'], false);
+        let grant = await call('tari_getViewAccess'); if (grant?.granted !== true) grant = await call('tari_requestViewAccess');
+        checkEpoch(epoch); if (grant?.granted !== true) throw new SapientError('Memo access was declined.', 'VIEW_ACCESS_DECLINED');
+        const chain = await escrowReader(deployment); checkEpoch(epoch);
+        for (const commitment of [chain.payoutReceiptCommitment,...chain.receiptCommitments]) {
+          try { await call('tari_claimPrivatePayment', { resourceAddress: NATIVE_TARI_RESOURCE, commitment }); }
+          catch { /* Already known, foreign or unreadable: never submit a transaction. */ }
+          checkEpoch(epoch);
+        }
+        const address = await call('tari_getWalletAddress'); reviewerKeyFromWallet(address); checkEpoch(epoch);
+        const records = await call('tari_getShieldedOutputs', { resourceAddress: NATIVE_TARI_RESOURCE }); checkEpoch(epoch);
+        if (!Array.isArray(records) || records.length > 512) throw new SapientError('Invalid private memo list.', 'INVALID_RESPONSE');
+        const receipts = [];
+        for (const record of records) {
+          if (record.amount !== '0' || typeof record.memo !== 'string' || !record.memo.startsWith('ootleaccord:v5:') || record.memo.length > 253) continue;
+          try {
+            const restored = await restoreMemoReceipt(record.memo,address,id); checkEpoch(epoch);
+            const binding = restored.binding;
+            const index = restored.kind === 'payout' ? null : chain.refundBindings.findIndex(b => b.key === binding.key && b.nonce === binding.nonce && b.value === binding.value);
+            const expected = index === null ? chain.payoutBinding : chain.refundBindings[index];
+            if (expected && expected.key === binding.key && expected.nonce === binding.nonce && expected.value === binding.value) receipts.push(Object.freeze({ ...restored, index }));
+          } catch { /* A different or malformed memo does not authorize a return. */ }
+        }
+        checkEpoch(epoch);
+        return Object.freeze({ state: chain, receipts: Object.freeze(receipts) });
+      } catch (error) { throw fail(error); }
+      finally { busy = false; }
+    },
+    async registerPrivateReturn(commitment) {
+      hex32(commitment, 'Private return commitment');
+      if (busy || requestId) throw new SapientError('Finish the existing wallet request first.', 'BUSY');
+      busy = true;
+      try {
+        const epoch = await connection(['privateBalanceView'], false);
+        const grant = await call('tari_getViewAccess'); checkEpoch(epoch);
+        if (grant?.granted !== true) throw new SapientError('Grant memo access before registering a return.', 'VIEW_ACCESS_DECLINED');
+        const result = await call('tari_claimPrivatePayment', { resourceAddress: NATIVE_TARI_RESOURCE, commitment });
+        checkEpoch(epoch); return result;
+      } finally { busy = false; }
+    },
     async getReviewerIdentity() {
       assertAlive();
       if (restorePromise) await restorePromise;
@@ -461,7 +614,7 @@ export function createSapientAdapter({
     },
     async approveMilestone({ agreement, stageId, submissionHash, maxFee } = {}, options) {
       const terms = validateAgreement(agreement);
-      if (![QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA].includes(terms.schema)) throw new SapientError('Open a percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
+      if (![QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA].includes(terms.schema)) throw new SapientError('Open a percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
       const stage = terms.milestones.find(item => item.id === stageId);
       if (!stage) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');
       const hashArg = cborSubmissionHash(submissionHash);
@@ -481,7 +634,7 @@ export function createSapientAdapter({
     },
     async submitWork({ agreement, stageId, submissionHash, maxFee } = {}, options) {
       const terms = validateAgreement(agreement);
-      if (![QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA].includes(terms.schema)) throw new SapientError('Open a percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
+      if (![QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA].includes(terms.schema)) throw new SapientError('Open a percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
       const hashArg = cborSubmissionHash(submissionHash);
       validateFee(maxFee);
       if (!terms.milestones.some(stage => stage.id === stageId)) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');

@@ -1,5 +1,7 @@
 # Private escrow test — Esmeralda
 
+> Earlier immutable v4 test. The [latest v5 escrow supports stock Sapient deposits and encrypted refund memos](sapient-escrow-testnet.md). Restrictions below apply to this earlier component.
+
 Recorded 30 October 2026 at epoch **12721**, component version **4**.
 
 **10 / 10 tTARI funded, 0 remaining. Two of three approvals recorded. The community reviewer has not approved; payout has not happened.**

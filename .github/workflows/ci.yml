@@ -24,6 +24,16 @@ jobs:
         run: cargo +1.97.1 test -p accord-escrow-template --test private_escrow --locked
       - name: Exercise encrypted private funding, one-time signers and private fees
         run: cargo +1.97.1 test -p accord-private-client --test encrypted_flow --locked
+      - name: Build stock-Sapient escrow and browser proof helper
+        run: |
+          cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-sapient-escrow-template --locked
+          cargo +1.97.1 build --target wasm32-unknown-unknown --release --lib -p accord-sapient-client --locked
+      - name: Exercise stock-wallet funding and encrypted memo recovery
+        run: cargo +1.97.1 test -p accord-sapient-escrow-template --locked
+      - name: Exercise the exact deployed escrow artifact
+        env:
+          OOTLEACCORD_TEMPLATE_WASM: ${{ github.workspace }}/artifacts/esmeralda/sapient-escrow-v5.wasm
+        run: cargo +1.97.1 test -p accord-sapient-escrow-template --test stock_wallet --locked
   verify:
     runs-on: ubuntu-latest
     steps:

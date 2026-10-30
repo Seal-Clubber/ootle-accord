@@ -4,6 +4,7 @@ export const AGREEMENT_SCHEMA = 'ootleaccord.agreement.v1';
 export const WALLET_AGREEMENT_SCHEMA = 'ootleaccord.agreement.v2';
 export const QUORUM_AGREEMENT_SCHEMA = 'ootleaccord.agreement.v3';
 export const ESCROW_AGREEMENT_SCHEMA = 'ootleaccord.agreement.v4';
+export const SAPIENT_ESCROW_SCHEMA = 'ootleaccord.agreement.v5';
 export const UINT64_MAX = (1n << 64n) - 1n;
 // Protocol-native TARI, six decimals; v1 does not support custom resource divisibilities.
 export const NATIVE_TARI_RESOURCE = `resource_${'01'.repeat(32)}`;
@@ -107,10 +108,10 @@ function normalizeReviewer(reviewer) {
 export function validateAgreement(input) {
   onlyKeys(input, ['schema', 'title', 'description', 'network', 'resourceAddress', 'creatorWalletAddress', 'milestones'], 'Agreement');
   const schema = input.schema ?? AGREEMENT_SCHEMA;
-  const escrow = schema === ESCROW_AGREEMENT_SCHEMA;
+  const escrow = schema === ESCROW_AGREEMENT_SCHEMA || schema === SAPIENT_ESCROW_SCHEMA;
   const quorumReview = escrow || schema === QUORUM_AGREEMENT_SCHEMA;
   const walletReview = quorumReview || schema === WALLET_AGREEMENT_SCHEMA;
-  if (![AGREEMENT_SCHEMA, WALLET_AGREEMENT_SCHEMA, QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA].includes(schema)) throw new AccordError('Unsupported agreement version.');
+  if (![AGREEMENT_SCHEMA, WALLET_AGREEMENT_SCHEMA, QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA].includes(schema)) throw new AccordError('Unsupported agreement version.');
   if (input.network !== 'esmeralda') throw new AccordError('This prototype supports the Esmeralda testnet only.', 'WRONG_NETWORK');
   if (typeof input.resourceAddress !== 'string' || !RESOURCE.test(input.resourceAddress)) throw new AccordError('Enter a valid resource address.');
   if (input.resourceAddress.toLowerCase() !== NATIVE_TARI_RESOURCE) throw new AccordError('Agreement v1 supports only native TARI with six decimal places.', 'UNSUPPORTED_RESOURCE');
@@ -124,7 +125,7 @@ export function validateAgreement(input) {
   const ids = new Set();
   const hashes = new Set();
   const milestones = input.milestones.map(stage => {
-    onlyKeys(stage, ['id', 'title', 'description', 'refundEpoch', 'targetUnits', ...(escrow ? ['requiredReviewerPublicKey', 'payoutPublicKey'] : []), ...(quorumReview ? ['reviewers', 'approvalPercent'] : ['reviewer']), ...(walletReview ? [] : ['hashLockHex'])], 'Milestone');
+    onlyKeys(stage, ['id', 'title', 'description', 'refundEpoch', 'targetUnits', ...(escrow ? ['requiredReviewerPublicKey', 'payoutPublicKey'] : []), ...(schema === SAPIENT_ESCROW_SCHEMA ? ['payoutNonce'] : []), ...(quorumReview ? ['reviewers', 'approvalPercent'] : ['reviewer']), ...(walletReview ? [] : ['hashLockHex'])], 'Milestone');
     const id = text(stage.id, 'Milestone ID', 1, 40);
     if (!/^[a-z0-9][a-z0-9-]*$/.test(id) || ids.has(id)) throw new AccordError('Use unique lowercase milestone IDs containing letters, digits and hyphens.');
     ids.add(id);
@@ -161,6 +162,10 @@ export function validateAgreement(input) {
       if (!reviewers.some(r => r.publicKey === normalized.requiredReviewerPublicKey)) throw new AccordError('The required reviewer must be on the reviewer list.');
       normalized.payoutPublicKey = hex32(stage.payoutPublicKey, 'One-time payout key');
       if (/^0+$/.test(normalized.payoutPublicKey)) throw new AccordError('The payout key cannot be zero.');
+      if (schema === SAPIENT_ESCROW_SCHEMA) {
+        normalized.payoutNonce = hex32(stage.payoutNonce, 'Payout public nonce');
+        if (/^0+$/.test(normalized.payoutNonce)) throw new AccordError('The payout nonce cannot be zero.');
+      }
     }
     return normalized;
   });

@@ -1,90 +1,75 @@
 # OotleAccord
 
-**Shared goals. Private contributions.**
+Community milestone funding on Tari Ootle, with stock Sapient integration.
 
-OotleAccord is an original community-funding prototype for Tari Ootle. Communities prepare a public agreement, split work into reviewed milestones, and keep recovery material private. It is inspired by Threshold's funding idea; this repository contains a fresh implementation for the October 2026 Tari build contest.
+[Open the app](https://seal-clubber.github.io/ootle-accord/#explore) · [Live receipts and privacy limits](docs/sapient-escrow-testnet.md)
 
-**A real 10 tTARI private-output escrow is funded on Esmeralda.** Its recorded checkpoint shows 0 remaining and two test approvals, with the required community vote still outstanding. Refresh in the app for current status. Changes in the exact public total reveal contribution sizes. General private funding through Sapient remains disabled; this test used the native private client. See [private escrow receipts and limits](docs/private-escrow-testnet.md).
+The latest Esmeralda accord holds **7 / 10 tTARI**, with **3 tTARI remaining** at its recorded checkpoint. Funding uses the unmodified Sapient SDK. The escrow holds the coins, rejects overfunding, and opens review only at 10/10. Three of five reviewers must approve, including the community reviewer. Four reviewers share a test operator. No payout has been made.
 
-A [second accord is privately funded 7/10 tTARI](docs/partial-escrow-testnet.md), with 3 tTARI remaining. Its approval opens only after full funding, and the community reviewer remains mandatory. Both accords are available separately in the app with their own balances, work and pinned contract calls.
+Contribution amounts and the exact remaining counter are public. The deposit uses one-time signing keys and omits the donor’s base wallet address. Wallet preparation, transaction history and timing can still link activity. This does not establish donor anonymity.
 
-## Try it locally
+## Use it
 
-**Website:** [seal-clubber.github.io/ootle-accord](https://seal-clubber.github.io/ootle-accord/)
+1. Open **Community accord · Sapient**, then **Fund this accord**.
+2. Choose an amount or **Max**, then **Check coins in Sapient**. This explicitly requests a private view grant to read coin amounts and memos; they stay in tab memory. Seeds, view secrets and wallet spending keys stay in Sapient.
+3. If necessary, approve **Prepare exact coin**: a private transfer to yourself within Sapient. Then approve **Fund in Sapient** separately. Each transaction has a private fee limit of 0.1 tTARI. The app never redeems a larger coin to reveal the rest of your balance.
+4. After full funding, reviewers can approve the submitted work. Payout needs the percentage quorum and the mandatory reviewer.
+5. **My refunds & payout → Find my memos in Sapient** recovers return metadata from encrypted, zero-value native outputs. Eligible unpaid contributions become refundable after the deadline to fixed private wallet destinations. A separate organizer fee reserve pays return fees.
 
-Install Node.js 22 or newer. There are no package dependencies to install.
+There is no custom wallet build, funding relay or intermediate funding wallet in the app. The live demonstration used an isolated, agent-controlled account with the stock SDK; it does not substitute for a test of the installed Chrome extension. The app checks the actual provider capabilities and fails before spending if they are missing. The user still approves each wallet spend in Sapient.
+
+Older immutable escrows remain under **Earlier test accords**, with separate work and receipts. They cannot acquire the new funding method. **Create** currently exports public agreement terms; it does not publish another escrow.
+
+## Run and check
+
+Node.js 22 or newer is required. The static app has no npm dependencies to install; its browser crypto helper is included.
 
 ```sh
 node app/server.mjs
-```
-
-Open [http://127.0.0.1:4173/](http://127.0.0.1:4173/). The local server binds only to your computer. Set `PORT` if 4173 is already in use.
-
-The interface has three tabs:
-
-- **Accords:** both Esmeralda escrows, remaining capacity, a visible Fund this accord control with Max, approval threshold and an explicit balance refresh. Private Sapient payment is visibly unavailable; the control opens the contribution panel without creating a transaction.
-- **Create:** milestone terms, reviewer wallets and approval percentages; saves a public agreement file.
-- **Review:** the work and acceptance terms, with Sapient submission and approval.
-
-The landing-page sections, simulated funding sandbox and legacy recovery screen have been removed. Cryptographic recovery helpers remain in the library for compatibility, with no recovery UI. The app requests no balances or private view access. It performs no background indexer requests. Refresh balance explicitly contacts the pinned Tari indexer with the public contract ID, checks immutable terms and updates the counter/votes. Saved checkpoints are labeled. The browser relies on indexer verification rather than independently checking consensus proofs.
-
-Sapient's existing origin connection is restored after refresh and checked again when returning to the app. This uses passive account, network and capability reads; it never opens a permission or signing prompt. No account address or connection token is stored by the app. A locked wallet, revoked site permission or wrong network stays disconnected until Sapient reports a valid existing connection or the user explicitly connects again.
-
-## Funding model and limits
-
-The v4 escrow template fixes the native-TARI target, deadline, creator, one-time payout key, reviewer list, percentage and required reviewer. Funding spends private inputs into escrow-controlled script-only outputs. An opening proof binds each real output value to the public counter increase; native range and balance proofs validate the actual movement. Funding above the remaining capacity is rejected atomically. Each escrow supports up to 64 pledges. The Max control uses exact raw-unit capacity; a concurrent donation can make a quote stale and cause rejection.
-
-The creator submits a work fingerprint. Payout requires the rounded-up quorum **and** the mandatory reviewer, then a creator signature and a transfer to the fixed private destination. After the deadline, eligible unpaid pledges refund only to their precommitted one-time refund keys. Recovery data is essential and stays local. Six escrow engine tests and an encrypted client flow cover these paths. The live 10 tTARI example remains locked; no live payout/refund is claimed.
-
-Sapient signs work submissions and public review votes with private fees enforced. Its current provider does not expose the custom private escrow funding flow, so browser donations remain disabled without a revealed fallback. Create saves public v3 review terms and does not deploy a contract. The native client is an offline fixed 10 tTARI test utility. Older agreement helpers and the authorization-only demonstration remain in source for compatibility; see [earlier review deployment](docs/testnet-deployment.md).
-
-The exact aggregate reveals donation sizes by subtraction. Stealth output amounts remain encrypted and donor signing keys are one-time, but transaction graph, timing, fees, public creator/reviewer keys and the documented public shielding bootstrap remain visible. This is not donor anonymity. See the [current privacy model and chain evidence](docs/private-escrow-testnet.md). Legacy [HTLC privacy](docs/privacy.md), [protocol](docs/protocol.md) and [Sapient notes](docs/sapient.md) are historical references.
-
-## Check and build
-
-```sh
 node scripts/check.mjs
 node --test tests/*.test.mjs
 node scripts/build.mjs
 ```
 
-`check.mjs` checks JavaScript syntax and page references. Tests cover amount precision, agreement validation, secrets, encrypted recovery, wallet request recovery and preview-server boundaries. Wallet tests use a mock provider; they do not establish validator acceptance, an installed-extension round trip or live privacy.
+Preview at [127.0.0.1:4173](http://127.0.0.1:4173/). The read-only server binds to loopback. `build.mjs` creates `dist/` from app assets and documentation, excluding `.local/`, wallet files, exports, native binaries and source artifacts.
 
-The private escrow update adds six real Tari-engine escrow tests and an additional real encrypted funding/payout test, alongside the existing five quorum-engine tests and JavaScript suite. Publication, creation, shielding, private funding, work submission and two test votes committed on Esmeralda. The required installed-Sapient community approval is still outstanding. See the [verification ledger](docs/verification.md).
+The app refreshes public escrow state on startup, return to the tab and every 30 seconds while visible. It checks immutable terms, template, vaults, funding and votes using the pinned Tari indexer. No wallet read or prompt happens during these background checks. The browser trusts the indexer’s verification flag; it does not independently verify consensus proofs.
 
-`build.mjs` creates a static `dist/` directory with local app assets and documentation. It excludes the preview server, dotfiles and JSON exports, and generates a public `version.json` containing only the build digest. The build does not publish or deploy anything. When hosting, apply the restrictive response policy in [app/server.mjs](app/server.mjs) and verify that the installed wallet can inject its provider under that policy. Assets and fonts are local; the application has no analytics or remote font service.
+Sapient connections restore using passive reads of existing origin permission. Unresolved wallet requests retain their IDs and are resumed or explicitly reconciled before another transaction. Private coin summaries and decrypted memos are never written to browser storage. Native return tracking stores only public transaction/output identifiers, before broadcast, so an ambiguous response cannot trigger a new return automatically.
+
+## Escrow and recovery
+
+The v5 `SapientEscrow` template fixes the goal, deadline, creator, payout key/nonce, reviewers, approval percentage and mandatory reviewer. Native TARI principal lives in its vault; its real balance must equal the funding counter. An expected-total check and exact cap reject stale or excessive deposits atomically. Failed/stale transactions can still cost network fees.
+
+Stock Sapient redeems one exact-value private input with a separate private fee input. The follow-up escrow call uses that bucket and creates an encrypted zero-value memo receipt for the donor. Each receipt contains a private return nonce; it is not a wallet spending key. That nonce authorizes fresh ciphertext to the fixed private return key and public nonce already bound on-chain. Action, component and pledge index are included in the authorization. Public masks and reusable public return proofs are not stored in the contract.
+
+The escrow supports up to 16 contributions and reserves 1.6 tTARI separately for up to sixteen 0.1 tTARI return fees. Principal is not reduced by return fees. This bounded test design has no contribution-slot abuse protection. After expiry, unpaid pledges can be refunded once; payout and refunds exclude each other. The creator can recover unused fee reserve only after principal is resolved.
+
+Memo recovery was tested on Esmeralda using a fresh local SDK ledger and the same isolated test seed. It recovered the actual 7 tTARI refund binding from the on-chain encrypted memo. No seed, plaintext memo nonce, mask or funded recovery export is committed. Anyone granted private view access can read these memos; grant that access only to an app you trust.
+
+## Validation and builds
+
+The JavaScript suite covers exact amounts, fixed terms, chain parsing, coin liveness/selection, stale funding, account changes, wallet request recovery, memo restoration, browser WASM and duplicate-return guards. Mock provider tests do not prove an installed-extension round trip. Native Tari-engine tests exercise real encrypted deposits, caps, required votes, payout, refunds and receipt encryption. The same three escrow lifecycle tests passed against the exact optimized artifact published on Esmeralda.
+
+With Rust 1.97.1 and `wasm32-unknown-unknown` installed:
+
+```sh
+cargo +1.97.1 test -p accord-sapient-escrow-template --locked
+cargo +1.97.1 build -p accord-sapient-client --lib --release --target wasm32-unknown-unknown --locked
+```
+
+Regenerate the browser helper with `wasm-bindgen-cli` **0.2.128**, using `--target web --out-dir app/lib/stock-crypto --out-name accord_sapient_client` on the resulting client WASM. The deployed template binary and SHA-256 are preserved under [artifacts/esmeralda](artifacts/esmeralda/README.md). Set `OOTLEACCORD_TEMPLATE_WASM` to that artifact’s absolute path to exercise it directly in the engine tests. Compiler version, optimization and source formatting can change binary hashes.
+
+The earlier quorum/private-output templates and native proof client remain in the Rust workspace. See [verification ledger](docs/verification.md) for the distinction between source tests, engine tests and live network evidence. Live v5 payout/refund and the required installed-Sapient community approval remain outstanding.
 
 ## GitHub Pages
 
-The `Publish GitHub Pages` workflow tests the code, builds `dist/`, and deploys it on every push to `main`. It can also be started manually from Actions. Repository Settings → Pages uses **GitHub Actions** as the publishing source.
+Pushing to `main` runs tests, packages the static app and deploys GitHub Pages. All assets use relative paths. A same-origin version manifest detects new builds and loads fresh versioned assets while idle on Accords. Updates defer during drafts, review, contribution/return panels and unresolved transactions.
 
-Published builds check their same-origin public version manifest on startup, return to the tab, and every 30 seconds while visible. A new build automatically loads fresh versioned HTML while browsing Accords with no edits or wallet action in progress. Updates defer during review, draft editing, an open contribution panel, or an unresolved wallet request; an update notice allows a later explicit reload. This does not poll balances or create wallet requests. Tabs running older code need one ordinary refresh to install this update checker; subsequent deployments are detected automatically.
-
-All application assets use relative paths so the project works at `/ootle-accord/`. A page-level content security policy and no-referrer policy travel with the static HTML. GitHub Pages does not reproduce the preview server's custom HTTP headers. Recovery files are decrypted locally; GitHub serves the application files and can observe ordinary visitor connection metadata. General private donations through Sapient remain disabled; the native-client-funded escrow is real.
-
-## Build the approval template
-
-With Rust 1.97.1 and the wasm32-unknown-unknown target installed, run:
-
-    cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-review-template --locked
-
-Run `cargo +1.97.1 test -p accord-review-template --test quorum_engine --locked` on Linux to exercise the engine tests. The test helper also compiles the WASM. The helper requires a native Cranelift-supported target and build tools. `accord-deploy-args` encodes public deployment arguments with Tari’s CBOR library. For private escrow, build `-p accord-escrow-template` and run `cargo +1.97.1 test -p accord-escrow-template --test private_escrow --locked` plus `cargo +1.97.1 test -p accord-private-client --test encrypted_flow --locked`. The native client never submits transactions itself; recovery journals stay under ignored `.local/`.
-
-## Repository map
-
-| Path | Purpose |
-| --- | --- |
-| `app/` | Browser application and local preview server |
-| `app/lib/accord.mjs` | Public agreements, exact native-TARI amounts and reviewer secrets |
-| `app/lib/recovery.mjs` | Recovery records, private handoffs and encrypted backups |
-| `app/lib/sapient.mjs` | Explicit Sapient connection, fail-closed funding and resumable claim/refund requests |
-| `tests/` | Dependency-free Node test suite |
-| `docs/` | Protocol, privacy boundaries, wallet findings and contest checklist |
-
-Never commit wallet seeds, passwords, real reviewer secrets, refund masks or recovery exports. File patterns for common exports are ignored; keep confidential material outside this repository as well.
+Assets and fonts are local. There is no analytics service. GitHub can observe normal visitor connection metadata; the public Tari indexer sees public contract and transaction reads/broadcasts. The HTML carries a restrictive content policy permitting local WASM compilation, and a no-referrer policy. See [server policy](app/server.mjs) and [current chain evidence](docs/sapient-escrow-testnet.md).
 
 ## Contest and provenance
 
-The October theme focuses on Tari privacy. The submission checklist and an unpublished entry draft are in [docs/contest.md](docs/contest.md). The project was developed with coding-agent assistance under the author's direction. No source code was copied from Threshold or another contest submission. The Tari and Sapient APIs are external dependencies documented from their primary sources.
+OotleAccord is an original implementation inspired by Threshold’s community-funding idea, prepared for the October 2026 Tari privacy contest. No Threshold source was copied. It was developed with coding-agent assistance under the author’s direction. The [contest checklist and unpublished draft](docs/contest.md) still need the account owner’s prize address and announcement. No contest entry or external announcement has been sent.
 
-License: [MIT](LICENSE).
+License: [MIT](LICENSE). Tari cryptographic and transaction dependencies retain their upstream licenses. Never commit wallet seeds, private return metadata, passwords or recovery exports.

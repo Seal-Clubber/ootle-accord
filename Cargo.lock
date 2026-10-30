@@ -53,6 +53,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "accord-sapient-client"
+version = "0.1.0"
+dependencies = [
+ "accord-private-client",
+ "getrandom 0.2.17",
+ "getrandom 0.4.3",
+ "ootle-network",
+ "ootle_byte_type",
+ "rand",
+ "serde",
+ "serde_json",
+ "tari_bor",
+ "tari_crypto",
+ "tari_ootle_common_types",
+ "tari_ootle_transaction",
+ "tari_ootle_wallet_crypto",
+ "tari_template_lib",
+ "tari_template_lib_types",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "accord-sapient-escrow-template"
+version = "0.1.0"
+dependencies = [
+ "accord-private-client",
+ "accord-sapient-client",
+ "ootle_byte_type",
+ "rand",
+ "tari_bor",
+ "tari_crypto",
+ "tari_ootle_wallet_crypto",
+ "tari_template_lib",
+ "tari_template_test_tooling",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1180,8 +1217,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
