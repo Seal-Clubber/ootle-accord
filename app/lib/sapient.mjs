@@ -297,7 +297,7 @@ export function createSapientAdapter({
         case 'failed':
           // Wallet failures can include an unknown network outcome. Never treat this as
           // proof that no spend occurred; retain the ID for inspection/reconciliation.
-          throw new SapientError(`${record.error || 'The wallet marked the request failed.'} Inspect the existing request in Sapient before creating another transaction.`, 'TRANSACTION_FAILED');
+          throw new SapientError(`${record.error || 'The wallet marked the request failed.'} A failed request cannot be resumed. Check it in Sapient, then use Clear failed request to make a new approval.`, 'TRANSACTION_FAILED');
         case 'pending':
           update({ status: 'awaiting-approval' });
           break;
@@ -317,7 +317,7 @@ export function createSapientAdapter({
     if (restorePromise) await restorePromise;
     assertAlive();
     if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
-    if (requestId) throw new SapientError('An existing Sapient request is still pending. Open the Sapient panel and choose Resume request before creating another approval or payment.', 'PENDING_REQUEST');
+    if (requestId) throw new SapientError('A previous Sapient request needs attention. Resume it if it is still pending, or use Clear failed request after checking that Sapient marks it failed or rejected.', 'PENDING_REQUEST');
     busy = true;
     try {
       const epoch = await connection(required);
@@ -476,7 +476,7 @@ export function createSapientAdapter({
         return await transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [cborReviewerIndex(index), hashArg] } }], inputs: reviewInputs(expectedNetwork, component), ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
       } catch (error) {
         if (!isSpentNativeInput(error)) throw error;
-        throw fail(new SapientError('Sapient tried to use an already-spent private tTARI output for the approval fee.\n\nOpen Sapient’s home screen and let its private-coin refresh finish. Check the failed request in Sapient, then reconcile its local request ID before approving again. If the same error remains, update Sapient.\n\nWallet details: ' + error.message, 'SPENT_PRIVATE_FEE_INPUT', error));
+        throw fail(new SapientError('Sapient tried to use an already-spent private tTARI output for the approval fee.\n\nOpen Sapient’s home screen and let its private-coin refresh finish. Check the failed request in Sapient, then use Clear failed request before approving again. If the same error remains, update Sapient.\n\nWallet details: ' + error.message, 'SPENT_PRIVATE_FEE_INPUT', error));
       }
     },
     async submitWork({ agreement, stageId, submissionHash, maxFee } = {}, options) {
@@ -520,6 +520,35 @@ export function createSapientAdapter({
       busy = true;
       try { return await pollPending(await connection(), signal); }
       catch (error) { throw fail(error); }
+      finally { busy = false; }
+    },
+    async dismissFailedRequest({ confirmed = false } = {}) {
+      assertAlive();
+      if (restorePromise) await restorePromise;
+      assertAlive();
+      if (busy) throw new SapientError('Wait for the active wallet action to finish.', 'BUSY');
+      if (confirmed !== true) throw new SapientError('Check the previous request in Sapient and confirm that it failed or was rejected.', 'RECONCILIATION_REQUIRED');
+      if (!requestId) throw new SapientError('There is no previous request to clear.', 'NO_PENDING_REQUEST');
+      if (requestId === UNKNOWN_CREATE) throw new SapientError('The previous request has no recoverable ID. Inspect Sapient and use the manual reconciliation controls in its app panel.', 'UNKNOWN_CREATE_OUTCOME');
+      const id = requestId;
+      busy = true;
+      try {
+        // Read-only status check. This does not require private fee coins,
+        // request private view access, or resubmit the old transaction.
+        const epoch = await connection([], false);
+        const record = await call('tari_getTransactionRequest', { requestId: id });
+        checkEpoch(epoch);
+        if (requestId !== id) throw new SapientError('The previous request changed. Inspect it again.', 'REQUEST_CHANGED');
+        if (record?.status !== 'failed' && record?.status !== 'rejected') {
+          throw new SapientError('Sapient has not confirmed this request as failed or rejected. Keep its ID and use Resume request to inspect its outcome.', 'REQUEST_NOT_FAILED');
+        }
+        // The user has reconciled the outcome and the wallet confirms a terminal
+        // status. Forget only our ID; never imply cancellation or submit again.
+        setPending(null);
+        submitAttempted.delete(id);
+        update({ status: snapshot.account ? 'connected' : 'disconnected', error: null });
+        return Object.freeze({ cleared: true, previousStatus: record.status });
+      } catch (error) { throw fail(error); }
       finally { busy = false; }
     },
     clearPending() {

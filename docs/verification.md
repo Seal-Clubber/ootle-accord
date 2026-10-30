@@ -1,3 +1,9 @@
+## Clearing a failed wallet request — 30 October 2026
+
+The Review screen now shows a previous-request recovery box whenever there is a recoverable request ID. After checking the request in Sapient, the user confirms that it failed or was rejected and chooses **Clear failed request**. The adapter rereads the wallet's status without requesting private balance/view access or submitting anything. It clears only a `failed`/`rejected` local ID; pending, approved, submitting, submitted, unknown, unreadable and account-changed outcomes remain guarded. An unknown-create marker still requires the existing manual reconciliation path.
+
+Clearing the ID does not cancel a wallet/network transaction or erase the wallet's record. It only allows a new, separately approved request after the user has checked the previous outcome. The app no longer directs failed requests back into the Resume loop. 74 JavaScript tests passed with one Windows symlink-permission skip, including terminal-status checks, acknowledgment, live-status refusal, unavailable reads, account changes and an explicitly requested fresh operation after clearing.
+
 ## Spent private approval-fee output — 30 October 2026
 
 Both official Esmeralda indexers report the user-supplied native-TARI UTXO as down. The escrow still records 10 tTARI locked, two votes and the required vote false at epoch 12736. The review instruction has no donor UTXO inputs, so this points to the wallet-generated private fee lane. It does not mean the escrow payout happened.

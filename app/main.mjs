@@ -284,6 +284,16 @@ $('#copy-review-error').addEventListener('click', event => action(event.currentT
   notify('Error copied. Paste it into the chat.');
 }));
 
+$('#clear-failed-request').addEventListener('click', event => action(event.currentTarget, async () => {
+  if (!$('#failed-request-checked').checked) throw new Error('Check the previous request in Sapient first, then tick the confirmation.');
+  if (!wallet.getState().account) await wallet.connect();
+  await wallet.dismissFailedRequest({ confirmed: true });
+  $('#failed-request-checked').checked = false;
+  $('#review-error').hidden = true;
+  $('#review-output').textContent = 'Previous failed request cleared from this app. Press Approve in Sapient to create a fresh approval. No transaction was sent by clearing it.';
+  notify('Failed request cleared. You can create a new approval.');
+}, { reviewError: true }));
+
 function walletSubmission(result, output) {
   const message = `Wallet reports submission: ${result.transactionId}. This page has not independently verified chain acceptance. Check the transaction in Sapient.`;
   if (output) output.textContent = message;
@@ -309,6 +319,8 @@ wallet.subscribe(state => {
   $('#wallet-connect').hidden = connected;
   $('#wallet-disconnect').hidden = !connected;
   $('#wallet-resume').hidden = !state.requestId;
+  $('#failed-request-recovery').hidden = !state.requestId || state.requestId.startsWith('ootleaccord:');
+  if (!state.requestId) $('#failed-request-checked').checked = false;
   const caps = state.capabilities;
   const lines = connected ? [
     `Network: ${state.network}`, `Status: ${state.status}`,

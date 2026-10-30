@@ -285,3 +285,56 @@ test('unsupported polling methods retain the real request ID for reconciliation'
   assert.equal(adapter.getState().requestId, 'request-1');
   assert.equal(mock.calls.some(c => c.method === 'tari_submitTransactionRequest'), false);
 });
+
+test('clearing a confirmed terminal request checks wallet status and sends no transaction', async () => {
+  for (const status of ['failed', 'rejected']) {
+    const storage = memoryStorage('request-old');
+    const mock = wallet({ statuses: [status], caps: { transactionRequests: false, supportsPrivateFees: false } });
+    const adapter = adapterFor(mock, { storage }); await adapter.connect();
+    assert.deepEqual(await adapter.dismissFailedRequest({ confirmed: true }), { cleared: true, previousStatus: status });
+    assert.equal(adapter.getState().requestId, null); assert.equal(storage.values.size, 0);
+    assert.equal(mock.calls.filter(c => c.method === 'tari_getTransactionRequest').length, 1);
+    assert.equal(mock.calls.some(c => /createTransactionRequest|submitTransactionRequest|ViewAccess|Balances/.test(c.method)), false);
+  }
+});
+
+test('clearing requires acknowledgment and refuses live, submitted or unknown requests', async () => {
+  const m = wallet(); const a = adapterFor(m, { storage: memoryStorage('request-old') }); await a.connect();
+  await assert.rejects(a.dismissFailedRequest(), { code: 'RECONCILIATION_REQUIRED' });
+  assert.equal(m.calls.some(c => c.method === 'tari_getTransactionRequest'), false);
+  for (const status of ['pending', 'approved', 'submitting', 'submitted', 'unknown']) {
+    const mock = wallet({ statuses: [status] }); const adapter = adapterFor(mock, { storage: memoryStorage('request-old') }); await adapter.connect();
+    await assert.rejects(adapter.dismissFailedRequest({ confirmed: true }), { code: 'REQUEST_NOT_FAILED' });
+    assert.equal(adapter.getState().requestId, 'request-old');
+    assert.equal(mock.calls.some(c => /createTransactionRequest|submitTransactionRequest/.test(c.method)), false);
+  }
+  const unknown = adapterFor(wallet(), { storage: memoryStorage('ootleaccord:unknown-create-outcome') });
+  await assert.rejects(unknown.dismissFailedRequest({ confirmed: true }), { code: 'UNKNOWN_CREATE_OUTCOME' });
+  assert.equal(unknown.getState().requestId, 'ootleaccord:unknown-create-outcome');
+});
+
+test('unavailable status reads and account changes cannot clear a previous request', async () => {
+  for (const changed of [false, true]) {
+    const mock = wallet(); const original = mock.provider.request;
+    mock.provider.request = args => {
+      if (args.method === 'tari_getTransactionRequest') {
+        if (changed) { mock.changeAccount(); return Promise.resolve({ status: 'failed' }); }
+        return Promise.reject(new Error('Wallet status unavailable'));
+      }
+      return original(args);
+    };
+    const adapter = adapterFor(mock, { storage: memoryStorage('request-old') }); await adapter.connect();
+    await assert.rejects(adapter.dismissFailedRequest({ confirmed: true }));
+    assert.equal(adapter.getState().requestId, 'request-old');
+  }
+});
+
+test('clearing a checked failed request permits a fresh explicitly requested operation', async () => {
+  const mock = wallet({ statuses: ['failed', 'approved', 'submitted'] });
+  const adapter = adapterFor(mock, { storage: memoryStorage('request-old') }); await adapter.connect();
+  await adapter.dismissFailedRequest({ confirmed: true });
+  assert.equal(mock.calls.some(c => c.method === 'tari_createTransactionRequest'), false);
+  await adapter.claimMilestone(claim);
+  assert.equal(mock.calls.filter(c => c.method === 'tari_createTransactionRequest').length, 1);
+  assert.equal(mock.calls.filter(c => c.method === 'tari_submitTransactionRequest').length, 1);
+});
