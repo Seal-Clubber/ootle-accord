@@ -123,6 +123,7 @@ export async function discoverTariProvider({ target = globalThis.window, timeout
 
 /**
  * Dependency-free browser adapter. connect() and each submit method are explicit actions.
+ * restoreConnection() only reads an existing origin grant; it never prompts or signs.
  * getState()/subscribe() expose frozen snapshots. Only a request ID or ambiguity marker is persisted
  * in sessionStorage; callers own receipt storage and confidential delivery to recipients.
  */
@@ -133,6 +134,7 @@ export function createSapientAdapter({
   storage,
   pollIntervalMs = 700,
   requestTimeoutMs = 180000,
+  restoreTimeoutMs = 5000,
 } = {}) {
   let provider = initialProvider;
   let sessionStorage = storage;
@@ -148,6 +150,9 @@ export function createSapientAdapter({
   const listeners = new Set();
   let disposed = false;
   let busy = false;
+  let restorePromise = null;
+  let disconnectPromise = null;
+  let allowRestore = true;
   let generation = 0;
   let unsubscribeProvider;
   let boundProvider;
@@ -281,6 +286,8 @@ export function createSapientAdapter({
 
   async function transact(operation, required, { signal } = {}, validateResult) {
     assertAlive();
+    if (restorePromise) await restorePromise;
+    assertAlive();
     if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
     if (requestId) throw new SapientError('Resume the pending wallet request before creating another payment.', 'PENDING_REQUEST');
     busy = true;
@@ -310,20 +317,80 @@ export function createSapientAdapter({
       fn(snapshot);
       return () => listeners.delete(fn);
     },
+    restoreConnection() {
+      assertAlive();
+      if (restorePromise) return restorePromise;
+      if (busy || !allowRestore) return Promise.resolve(snapshot);
+      busy = true;
+      const epoch = generation;
+      const previousAccount = snapshot.account;
+      if (!previousAccount) update({ status: 'restoring', error: null });
+      const lookup = (async () => {
+        try {
+          await resolveProvider();
+          checkEpoch(epoch);
+          // Passive lookup: never substitute tari_requestAccounts here.
+          const accounts = await call('tari_getAccounts');
+          checkEpoch(epoch);
+          if (!Array.isArray(accounts)) throw new SapientError('Sapient returned invalid connected accounts.', 'INVALID_RESPONSE');
+          if (!accounts.length) { invalidateConnection(); return snapshot; }
+          if (typeof accounts[0] !== 'string' || !accounts[0]) throw new SapientError('Sapient returned an invalid connected account.', 'INVALID_RESPONSE');
+          if (previousAccount && !accounts.includes(previousAccount)) {
+            invalidateConnection();
+            return snapshot;
+          }
+          const [network, caps] = await Promise.all([call('tari_getNetwork'), call('tari_getCapabilities')]);
+          checkEpoch(epoch);
+          checkNetwork(network);
+          if (!caps || typeof caps !== 'object') throw new SapientError('Sapient returned invalid capabilities.', 'INVALID_RESPONSE');
+          update({ status: 'connected', account: previousAccount || accounts[0], network, capabilities: Object.freeze({ ...caps }), error: null });
+          return snapshot;
+        } catch (error) {
+          // A disconnect, account-change event or disposal wins over an older lookup.
+          if (disposed || generation !== epoch) return snapshot;
+          invalidateConnection();
+          if (error?.code !== 'NO_PROVIDER') fail(error);
+          return snapshot;
+        }
+      })();
+      let timer;
+      const timeout = new Promise(resolve => {
+        timer = setTimeout(() => {
+          if (!disposed && generation === epoch) {
+            invalidateConnection();
+            update({ error: 'Sapient did not respond to the connection check. Unlock or reconnect the wallet.' });
+          }
+          resolve(snapshot);
+        }, restoreTimeoutMs);
+      });
+      restorePromise = Promise.race([lookup, timeout]).finally(() => {
+        clearTimeout(timer);
+        busy = false;
+        restorePromise = null;
+      });
+      return restorePromise;
+    },
     async connect() {
+      assertAlive();
+      // A user's Connect click can arrive while the startup lookup is still waiting
+      // for injection. Finish that passive lookup before requesting permission.
+      if (restorePromise) await restorePromise;
+      if (disconnectPromise) await disconnectPromise;
       assertAlive();
       if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
       busy = true;
       update({ status: 'connecting', error: null });
+      const epoch = generation;
       try {
         await resolveProvider();
-        const epoch = generation;
+        checkEpoch(epoch);
         const accounts = await call('tari_requestAccounts');
         const [network, caps] = await Promise.all([call('tari_getNetwork'), call('tari_getCapabilities')]);
         checkEpoch(epoch);
         checkNetwork(network);
         if (!Array.isArray(accounts) || typeof accounts[0] !== 'string' || !accounts[0]) throw new SapientError('Sapient did not return a connected account.', 'NOT_CONNECTED');
         if (!caps || typeof caps !== 'object') throw new SapientError('Sapient returned invalid capabilities.', 'INVALID_RESPONSE');
+        allowRestore = true;
         update({ status: 'connected', account: accounts[0], network, capabilities: Object.freeze({ ...caps }), error: null });
         return snapshot;
       } catch (error) { invalidateConnection(); throw fail(error); }
@@ -331,9 +398,12 @@ export function createSapientAdapter({
     },
     async disconnect() {
       assertAlive();
+      if (disconnectPromise) return disconnectPromise;
+      allowRestore = false;
       // A disconnect cannot cancel a request already approved or submitted in the wallet.
       invalidateConnection();
-      if (provider) await call('tari_disconnect');
+      disconnectPromise = (async () => { if (provider) await call('tari_disconnect'); })().finally(() => { disconnectPromise = null; });
+      return disconnectPromise;
     },
     /** Fail closed: the stock provider exposes htlcFund but does not forward the SDK's
      * private-source options. An unknown `source` property must never be invented here. */
@@ -341,6 +411,8 @@ export function createSapientAdapter({
       throw new SapientError('Stock Sapient funds native HTLCs from revealed balances. Private milestone funding is disabled until the wallet exposes verified private-source support.', 'PRIVATE_ESCROW_UNAVAILABLE');
     },
     async getReviewerIdentity() {
+      assertAlive();
+      if (restorePromise) await restorePromise;
       assertAlive();
       if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
       busy = true;
@@ -398,6 +470,8 @@ export function createSapientAdapter({
       return transact({ kind: 'htlcRefund', resourceAddress, commitment, conditions: conditionSnapshot, amount, outputMask, ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, ['scriptPathSpend'], options);
     },
     async resumePending({ signal } = {}) {
+      assertAlive();
+      if (restorePromise) await restorePromise;
       assertAlive();
       if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
       if (!requestId) throw new SapientError('There is no pending wallet request to resume.', 'NO_PENDING_REQUEST');

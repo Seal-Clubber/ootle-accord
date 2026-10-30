@@ -241,7 +241,8 @@ function walletSubmission(result, output) {
   if (output) output.textContent = message;
   notify(message);
 }
-// Wallet actions never run on page load. No balance/view-access request is made.
+// Permission and transaction prompts require user actions. Startup only restores an
+// existing origin grant using passive account/network/capability reads.
 $('#wallet-open').addEventListener('click', () => $('#wallet-dialog').showModal());
 $('#wallet-close').addEventListener('click', () => $('#wallet-dialog').close());
 $('#wallet-connect').addEventListener('click', event => action(event.currentTarget, async () => {
@@ -256,7 +257,7 @@ $('#wallet-resume').addEventListener('click', event => action(event.currentTarge
 wallet.subscribe(state => {
   const connected = Boolean(state.account);
   if (!connected) { reviewerIdentity = null; $('#reviewer-wallet').value = ''; $('#reviewer-identity').hidden = true; }
-  $('#wallet-open').textContent = connected ? 'Sapient connected' : 'Connect Sapient';
+  $('#wallet-open').textContent = connected ? 'Sapient connected' : state.status === 'restoring' ? 'Checking Sapient…' : state.status === 'connecting' ? 'Connecting…' : 'Connect Sapient';
   $('#wallet-connect').hidden = connected;
   $('#wallet-disconnect').hidden = !connected;
   $('#wallet-resume').hidden = !state.requestId;
@@ -284,6 +285,19 @@ $('#wallet-forget').addEventListener('click', event => action(event.currentTarge
   notify('Local request ID forgotten. This did not cancel anything in Sapient or on the chain.');
 }));
 wallet.subscribe(state => { reconcile.hidden = !state.requestId; });
+
+function restoreWallet() {
+  // All expected missing/locked/disconnected cases are reflected in the snapshot.
+  // Never request permission or retry a transaction from lifecycle events.
+  void wallet.restoreConnection().catch(() => {});
+}
+restoreWallet();
+window.addEventListener('pageshow', restoreWallet);
+window.addEventListener('focus', restoreWallet);
+window.addEventListener('tari#initialized', restoreWallet);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') restoreWallet();
+});
 
 window.addEventListener('pagehide', () => {
   reviewerIdentity = null;

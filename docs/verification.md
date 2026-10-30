@@ -2,6 +2,12 @@
 
 The current interface has Accords, Create and Review tabs. The marketing layout, local sandbox and legacy recovery screen were removed. Earlier browser evidence for those removed screens below is historical. The deployed agreement remains reachable directly from Accords.
 
+## Sapient connection restoration
+
+58 JavaScript tests passed with one Windows symlink-permission skip. Ten new tests cover restoring an already-approved origin after refresh, locked/unlocked wallets, concurrent lifecycle checks, disconnect/disposal races, revoked permission, wrong network, a Connect click during restoration delayed provider injection, slow checks, reviewer actions during restoration and Connect/Disconnect ordering. Pending transaction IDs remain intact and no account address or authorization token is written to storage. Restoration only calls `tari_getAccounts`, then network and capability reads for an existing connection; it never requests permission, signs, submits, reads balances or grants view access. The app rechecks on startup, pageshow, focus, becoming visible and provider initialization. The logo uses hash navigation without reloading.
+
+The passive lookup follows Sapient's [provider API](https://github.com/chironbuilds/tari-wallet/blob/master/docs/integration/provider-api.md) and [background implementation](https://github.com/chironbuilds/tari-wallet/blob/master/src/background/index.ts). Sapient's own lock and connection-revocation behavior remains authoritative. An installed-extension lifecycle test remains separate from the mock regression suite.
+
 # Percentage-quorum update — 30 October 2026
 
 48 JavaScript tests passed, one Windows symlink-permission skip, no failures. Five real Tari-engine tests passed in Ubuntu: 3-of-5 gating, rounding/unanimity, forged and duplicate votes, work mismatch/change, deadlines and invalid reviewer/threshold configurations. The template and immutable component terms were verified against actual committed Esmeralda receipts. Creator work and two reviewer approvals committed. See [deployment details and fee ledger](testnet-deployment.md).

@@ -26,6 +26,8 @@ The interface has three tabs:
 
 The landing-page sections, simulated funding sandbox and legacy recovery screen have been removed. Cryptographic recovery helpers remain in the library for compatibility, with no recovery UI. The app requests no balances or private view access. It performs no background indexer requests; displayed votes are explicitly labeled as a recorded checkpoint.
 
+Sapient's existing origin connection is restored after refresh and checked again when returning to the app. This uses passive account, network and capability reads; it never opens a permission or signing prompt. No account address or connection token is stored by the app. A locked wallet, revoked site permission or wrong network stays disconnected until Sapient reports a valid existing connection or the user explicitly connects again.
+
 ## Funding model and limits
 
 New v3 agreements fix up to ten Sapient reviewer keys and a percentage per milestone. The creator submits a work fingerprint, and reviewers sign approvals for that same work. Votes required round up against all designated reviewers. The quorum template and a 3-of-5 example are deployed on Esmeralda, with two committed test approvals awaiting the community reviewer. This component holds no funds; private escrow remains unfinished. See [wallet review](docs/wallet-review.md) and [deployment receipts](docs/testnet-deployment.md).
