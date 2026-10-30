@@ -65,7 +65,7 @@
               <button type="button" id="submit-work" class="button button-outline">Submit work as creator</button>
               <p class="field-help">Files are hashed on this device. Only the fingerprint is submitted.</p>
             </details>
-            <label for="review-fee">Maximum fee (tTARI)</label><input id="review-fee" inputmode="decimal" value="1" required>
+            <label for="review-fee">Maximum fee (tTARI)</label><input id="review-fee" inputmode="decimal" value="0.1" required>
             <p class="field-help">Reviewer identities and votes are public. Your approval authorizes the creator to release the 10 tTARI to the fixed test-wallet destination; this vote does not itself send the payout. Private transaction fees are required.</p>
             <button type="submit" id="approve-review" class="button button-primary" disabled>Approve in Sapient</button>
             <div id="review-error" class="review-error" role="alert" tabindex="-1" hidden><p>Wallet action could not complete</p><p id="review-error-message"></p><button type="button" id="copy-review-error" class="text-button">Copy error</button></div>

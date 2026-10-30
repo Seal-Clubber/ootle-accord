@@ -1,3 +1,13 @@
+## Spent private approval-fee output — 30 October 2026
+
+Both official Esmeralda indexers report the user-supplied native-TARI UTXO as down. The escrow still records 10 tTARI locked, two votes and the required vote false at epoch 12736. The review instruction has no donor UTXO inputs, so this points to the wallet-generated private fee lane. It does not mean the escrow payout happened.
+
+Approval and creator-submission requests now declare the allowlisted component's known public inputs before signing; the funded escrow additionally declares its immutable authority vault/resource and native TARI resource. This avoids depending on the wallet's discovery retries for those inputs. The upstream SDK currently prepares a private fee proof outside its execute retry loop; reuse after a fee-consuming failed attempt is a possible cause, not established for this user's request. A wallet-side stale coin record is also possible.
+
+The approval adapter recognizes a specific native-TARI `Input substate … is down` error, explains wallet refresh/reconciliation, preserves the existing request ID and never retries or switches to revealed fees. Generic 404s, timeouts and other resources are not classified as spent approval-fee coins. The default review fee cap is reduced from 1 to 0.1 tTARI; the user can still change it before signing. 70 JavaScript tests passed with one Windows symlink-permission skip.
+
+Recovery remains a wallet action: open/unlock Sapient's home screen on Esmeralda and let its private-payment scan and spent-output pruning finish. Check the failed request/history, reconcile the app's local request marker, then create a fresh approval. The site requests no private balance or view grant and cannot repair the wallet's coin database itself. See [Sapient's popup scan handler](https://github.com/chironbuilds/tari-wallet/blob/master/src/background/index.ts) and [SDK fee selection/pruning](https://github.com/chironbuilds/ootle-sdk-ts/blob/master/src/wallet.ts). A successful installed-wallet approval remains outstanding.
+
 ## Wallet approval error reporting — 30 October 2026
 
 Approval, creator-submission and request-resume failures now remain beside the approval button with a Copy error action. General error notices no longer time out. Provider errors preserve the method name, original error code and message, including plain EIP-1193 error objects. A positively identified unsupported create method clears only its impossible request marker; uncertain create errors and unsupported polling methods keep the duplicate-spend guard and existing request ID. No fallback transaction path or fee-privacy downgrade is used.

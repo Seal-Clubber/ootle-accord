@@ -3,7 +3,7 @@
 import { QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, validateAgreement, agreementId } from './accord.mjs';
 import { cborReviewerIndex, cborSubmissionHash } from './review-args.mjs';
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
-import { REVIEW_DEPLOYMENTS } from './review-deployments.mjs';
+import { REVIEW_DEPLOYMENTS, REVIEW_DEPENDENCIES } from './review-deployments.mjs';
 
 const UINT64_MAX = (1n << 64n) - 1n;
 const RESOURCE = /^resource_[a-f0-9]{64}$/i;
@@ -45,6 +45,18 @@ function validateResource(address) {
 
 function validateFee(maxFee) {
   if (maxFee !== undefined) positiveUnits(maxFee, 'Maximum fee');
+}
+
+function reviewInputs(network, component) {
+  return [component, ...(REVIEW_DEPENDENCIES[network]?.[component] ?? [])]
+    .map(substate_id => ({ substate_id, version: null }));
+}
+
+function isSpentNativeInput(error) {
+  // Review calls carry no donor inputs. A spent native-TARI UTXO here belongs
+  // to the wallet-built fee lane. Do not classify a bare 404 or a wrong network.
+  return new RegExp(`Input substate utxo_${'01'.repeat(32)}_[a-f0-9]{64} \\(v[0-9]+\\) is down\\b`, 'i')
+    .test(error?.message ?? '');
 }
 
 function hex32(value, label) {
@@ -460,7 +472,12 @@ export function createSapientAdapter({
       const identity = await api.getReviewerIdentity();
       const index = stage.reviewers.findIndex(reviewer => reviewer.publicKey === identity.publicKey);
       if (index < 0) throw new SapientError('Connect one of the designated reviewer wallets.', 'WRONG_REVIEWER');
-      return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [cborReviewerIndex(index), hashArg] } }], ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
+      try {
+        return await transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [cborReviewerIndex(index), hashArg] } }], inputs: reviewInputs(expectedNetwork, component), ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
+      } catch (error) {
+        if (!isSpentNativeInput(error)) throw error;
+        throw fail(new SapientError('Sapient tried to use an already-spent private tTARI output for the approval fee.\n\nOpen Sapient’s home screen and let its private-coin refresh finish. Check the failed request in Sapient, then reconcile its local request ID before approving again. If the same error remains, update Sapient.\n\nWallet details: ' + error.message, 'SPENT_PRIVATE_FEE_INPUT', error));
+      }
     },
     async submitWork({ agreement, stageId, submissionHash, maxFee } = {}, options) {
       const terms = validateAgreement(agreement);
@@ -473,7 +490,7 @@ export function createSapientAdapter({
       if (!component) throw new SapientError('This milestone has no verified deployment. No transaction was created.', 'REVIEW_NOT_DEPLOYED');
       const identity = await api.getReviewerIdentity();
       if (identity.publicKey !== reviewerKeyFromWallet(terms.creatorWalletAddress)) throw new SapientError('Connect the project creator’s wallet.', 'WRONG_CREATOR');
-      return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'submit_work', args: [hashArg] } }], ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
+      return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'submit_work', args: [hashArg] } }], inputs: reviewInputs(expectedNetwork, component), ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
     },
     /** Reveals the reviewer preimage to the wallet/indexer and on-chain during the claim. */
     claimMilestone({ resourceAddress, commitment, conditions, preimageHex, maxFee } = {}, options) {
