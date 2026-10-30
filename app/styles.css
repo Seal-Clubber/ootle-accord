@@ -37,6 +37,7 @@ main { outline:none; }
 .spaced { margin-top:28px; }
 .surface { background:var(--surface); border:1px solid var(--line); border-radius:12px; }
 .accord-card,.form-surface { padding:26px; }
+.accord-card + .accord-card { margin-top:20px; }
 .accord-card h2 { font-size:22px; max-width:560px; }
 .accord-card .section-heading { margin-bottom:16px; }
 .badge { color:var(--accent); background:var(--soft); padding:4px 8px; border:1px solid var(--line); border-radius:5px; font-size:10px; letter-spacing:.6px; }

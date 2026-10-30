@@ -24,6 +24,11 @@ export function contributionAmount(value, state) {
   return amount;
 }
 
+export function canApproveEscrow(state, submissionHash) {
+  return Boolean(state?.fullyFunded && !state.paid && !state.expired && !state.approved &&
+    typeof submissionHash === 'string' && /^[a-f0-9]{64}$/.test(submissionHash) && state.submissionHash === submissionHash);
+}
+
 export function parseEscrowSubstate(response, deployment, epoch) {
   const agreement = validateAgreement(deployment.agreement);
   if (agreement.schema !== ESCROW_AGREEMENT_SCHEMA || agreement.milestones.length !== 1) throw new Error('Unsupported escrow agreement.');

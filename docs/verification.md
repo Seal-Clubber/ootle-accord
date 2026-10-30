@@ -1,3 +1,9 @@
+## Second accord funded 7/10 — 30 October 2026
+
+A second immutable component reuses the qualified escrow template. Constructor, public shielding bootstrap, private-input 7 tTARI funding and work submission committed on Esmeralda. The native client dry-run checked a 10 tTARI target, 7 funded and 3 remaining before broadcasting its saved signed envelope. The final checkpoint is version 2 at epoch 12737, with zero votes, the community reviewer required and paid false. The first escrow was not spent to fund this one. See [the second accord's receipts](partial-escrow-testnet.md).
+
+The app renders two independent cards and binds review selection to each agreement, work fingerprint and allowlisted component. Max shows 3 for the second accord, and approval stays disabled until a matching-work snapshot is fully funded. An asynchronous wallet connection cannot approve a different accord selected in the meantime. 77 JavaScript tests passed with one Windows symlink-permission skip. The changed private client compiled and its real 7 tTARI statement was accepted in a live dry-run and committed funding transaction. General Sapient donations remain unavailable; the contract cap stays authoritative.
+
 ## Clearing a failed wallet request — 30 October 2026
 
 The Review screen now shows a previous-request recovery box whenever there is a recoverable request ID. After checking the request in Sapient, the user confirms that it failed or was rejected and chooses **Clear failed request**. The adapter rereads the wallet's status without requesting private balance/view access or submitting anything. It clears only a `failed`/`rejected` local ID; pending, approved, submitting, submitted, unknown, unreadable and account-changed outcomes remain guarded. An unknown-create marker still requires the existing manual reconciliation path.

@@ -4,7 +4,9 @@
 
 OotleAccord is an original community-funding prototype for Tari Ootle. Communities prepare a public agreement, split work into reviewed milestones, and keep recovery material private. It is inspired by Threshold's funding idea; this repository contains a fresh implementation for the October 2026 Tari build contest.
 
-**A real 10 tTARI private-output escrow is funded on Esmeralda.** Its exact public total shows 0 remaining; changes in that total reveal contribution sizes. Two test reviewers have approved. The community reviewer is mandatory and has not approved, so no payout has happened. General private funding through Sapient remains disabled; this test used the native private client. See [private escrow receipts and limits](docs/private-escrow-testnet.md).
+**A real 10 tTARI private-output escrow is funded on Esmeralda.** Its recorded checkpoint shows 0 remaining and two test approvals, with the required community vote still outstanding. Refresh in the app for current status. Changes in the exact public total reveal contribution sizes. General private funding through Sapient remains disabled; this test used the native private client. See [private escrow receipts and limits](docs/private-escrow-testnet.md).
+
+A [second accord is privately funded 7/10 tTARI](docs/partial-escrow-testnet.md), with 3 tTARI remaining. Its approval opens only after full funding, and the community reviewer remains mandatory. Both accords are available separately in the app with their own balances, work and pinned contract calls.
 
 ## Try it locally
 

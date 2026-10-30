@@ -54,6 +54,24 @@ fn main() {
     let command = &argv[1];
     let dir = &argv[2];
     let config: Value = read(&argv[3]);
+    let funding_units = config
+        .get("funding_units")
+        .map(|v| {
+            v.as_u64()
+                .expect("funding_units must be an unsigned integer")
+        })
+        .unwrap_or(10_000_000);
+    let target_units = config
+        .get("target_units")
+        .map(|v| {
+            v.as_u64()
+                .expect("target_units must be an unsigned integer")
+        })
+        .unwrap_or(10_000_000);
+    assert!(
+        funding_units > 0 && funding_units <= target_units,
+        "Funding must be positive and within the target"
+    );
     assert!(
         Path::new(dir)
             .components()
@@ -82,10 +100,10 @@ fn main() {
             let op = RistrettoPublicKey::from_secret_key(&owner).to_byte_type();
             let vp = RistrettoPublicKey::from_secret_key(&view).to_byte_type();
             let (po, pv) = wallet_keys(config["payout_address"].as_str().unwrap());
-            let source = PrivateOutput::new(10_000_000, op, vp, Some(&owner), None);
+            let source = PrivateOutput::new(funding_units, op, vp, Some(&owner), None);
             let fee = PrivateOutput::new(1_000_000, op, vp, Some(&owner), None);
-            let payout = PrivateOutput::new(10_000_000, po, pv, None, None);
-            let refund = PrivateOutput::new(10_000_000, op, vp, Some(&owner), None);
+            let payout = PrivateOutput::new(target_units, po, pv, None, None);
+            let refund = PrivateOutput::new(funding_units, op, vp, Some(&owner), None);
             source.validate_decryption(&view);
             fee.validate_decryption(&view);
             refund.validate_decryption(&view);
@@ -110,14 +128,15 @@ fn main() {
         }
         "shield" => {
             let j: Journal = read(&path);
-            let stmt = transfer(vec![], 11_000_000, &[j.source, j.fee], None);
+            let shield_units = j.source.value.checked_add(j.fee.value).unwrap();
+            let stmt = transfer(vec![], shield_units, &[j.source, j.fee], None);
             let account: ComponentAddress =
                 FromStr::from_str(config["creator_component"].as_str().unwrap()).unwrap();
             let instructions = Transaction::builder(38u8, Epoch::from(20000u64))
                 .call_method(
                     account,
                     "withdraw",
-                    args![TARI_TOKEN, Amount::from(11_000_000u64)],
+                    args![TARI_TOKEN, Amount::from(shield_units)],
                 )
                 .put_last_instruction_output_on_workspace("shield")
                 .stealth_transfer_with_input_bucket(TARI_TOKEN, stmt, "shield")
@@ -128,6 +147,10 @@ fn main() {
         "fund" => {
             let mut j: Journal = read(&path);
             assert!(j.pledge.is_none(), "Funding proof already prepared");
+            assert_eq!(
+                j.source.value, funding_units,
+                "Funding config differs from recovery journal"
+            );
             let component: ComponentAddress =
                 FromStr::from_str(config["component"].as_str().unwrap()).unwrap();
             let root: Hash32 = serde_json::from_value(config["condition_root"].clone()).unwrap();
@@ -136,7 +159,7 @@ fn main() {
             // Creator can decrypt and build the eventual payout; the donor also
             // retains the mask in fund-recovery.json for an expired refund.
             let pledge = PrivateOutput::new(
-                10_000_000,
+                funding_units,
                 j.payout.recipient_owner,
                 j.payout.recipient_view,
                 None,
@@ -150,11 +173,13 @@ fn main() {
                 component,
                 config["agreement_id"].as_str().unwrap(),
                 0,
-                10_000_000,
+                funding_units,
                 refund,
                 b"ootleaccord.private-funding.v1",
             );
-            let fee_change = PrivateOutput::new(900_000, op, vp, Some(&j.owner), None);
+            assert!(j.fee.value > 100_000, "Private fee output too small");
+            let fee_change =
+                PrivateOutput::new(j.fee.value - 100_000, op, vp, Some(&j.owner), None);
             fee_change.validate_decryption(&j.view);
             let signer =
                 RistrettoPublicKey::from_secret_key(j.source.spend_secret.as_ref().unwrap())
@@ -168,13 +193,13 @@ fn main() {
             let stmt = transfer(vec![j.source.input()], 0, &[pledge.clone()], None);
             let unsigned =
                 Transaction::builder(38u8, Epoch::from(config["max_epoch"].as_u64().unwrap()))
-                    .with_nonce(100_000_001)
+                    .with_nonce(config["nonce"].as_u64().unwrap_or(100_000_001))
                     .with_fee_instructions_builder(|b| {
                         b.stealth_transfer(TARI_TOKEN, fee_stmt)
                             .put_last_instruction_output_on_workspace("fees")
                             .pay_fee_from_bucket("fees")
                     })
-                    .call_method(component, "fund", args![stmt, 10_000_000u64, refund, sig])
+                    .call_method(component, "fund", args![stmt, funding_units, refund, sig])
                     .add_input(InputDeclaration::write(UtxoAddress::new(
                         TARI_TOKEN,
                         j.source.commitment().into(),
@@ -231,6 +256,12 @@ fn main() {
             // required vote/deadline and caller authorization at execution.
             let j: Journal = read(&format!("{dir}/fund-recovery.json"));
             let pledge = j.pledge.as_ref().expect("No funded pledge recovery");
+            if command == "claim-args" {
+                assert_eq!(
+                    pledge.value, target_units,
+                    "A partial campaign payout needs all pledge recoveries; this journal contains only one pledge"
+                );
+            }
             let resource: ResourceAddress =
                 FromStr::from_str(config["authority_resource"].as_str().unwrap()).unwrap();
             let leaf = SpendCondition::access_rule(rule!(resource(resource)));
@@ -254,7 +285,7 @@ fn main() {
                 let proof = pledge.opening_proof(
                     component,
                     config["agreement_id"].as_str().unwrap(),
-                    10_000_000,
+                    pledge.value,
                     0,
                     refund_key,
                     b"ootleaccord.private-refund.v1",
@@ -273,6 +304,10 @@ fn main() {
         }
         "new-args" => {
             let j: Journal = read(&path);
+            assert_eq!(
+                j.payout.value, target_units,
+                "Target config differs from recovery journal"
+            );
             let payout = match j.payout.auth {
                 SpendAuthorization::Key(pk) => pk,
                 _ => panic!(),
@@ -289,7 +324,7 @@ fn main() {
                 literal(reviewers),
                 literal(60u8),
                 literal(2u32),
-                literal(10_000_000u64),
+                literal(target_units),
                 literal(config["deadline"].as_u64().unwrap()),
             ];
             write_new(&format!("{dir}/constructor-args.json"), &a);
