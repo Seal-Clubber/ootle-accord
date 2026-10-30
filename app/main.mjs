@@ -22,14 +22,25 @@ function notify(message, error = false) {
   output.textContent = message;
   output.classList.toggle('error', error);
   output.hidden = false;
-  feedbackTimer = setTimeout(() => { output.hidden = true; }, error ? 18000 : 10000);
+  if (!error) feedbackTimer = setTimeout(() => { output.hidden = true; }, 10000);
 }
 
-async function action(button, work) {
+async function action(button, work, { reviewError = false } = {}) {
   if (button?.disabled) return;
   if (button) button.disabled = true;
+  if (reviewError) $('#review-error').hidden = true;
   try { return await work(); }
-  catch (error) { notify(error?.message || 'This action could not be completed.', true); }
+  catch (error) {
+    const message = error?.message || 'This action could not be completed.';
+    if (reviewError) {
+      if ($('#wallet-dialog').open) $('#wallet-dialog').close();
+      showView('review', { focus: false });
+      $('#review-error-message').textContent = message;
+      $('#review-error').hidden = false;
+      $('#review-error').focus({ preventScroll: true });
+      $('#review-error').scrollIntoView({ block: 'nearest' });
+    } else notify(message, true);
+  }
   finally { if (button) button.disabled = false; }
 }
 
@@ -249,7 +260,7 @@ $('#review-form').addEventListener('submit', event => {
     if (!wallet.getState().account) await wallet.connect();
     const result = await wallet.approveMilestone({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
     walletSubmission(result, $('#review-output'));
-  });
+  }, { reviewError: true });
 });
 
 $('#review-work').addEventListener('change', event => action(null, async () => {
@@ -266,6 +277,11 @@ $('#submit-work').addEventListener('click', event => action(event.currentTarget,
   if (!reviewAgreement || !submissionHash) throw new Error('Open an accord and choose its work file first.');
   const result = await wallet.submitWork({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
   walletSubmission(result, $('#review-output'));
+}, { reviewError: true }));
+
+$('#copy-review-error').addEventListener('click', event => action(event.currentTarget, async () => {
+  await navigator.clipboard.writeText($('#review-error-message').textContent);
+  notify('Error copied. Paste it into the chat.');
 }));
 
 function walletSubmission(result, output) {
@@ -285,7 +301,7 @@ $('#wallet-disconnect').addEventListener('click', event => action(event.currentT
   await wallet.disconnect();
   notify('Wallet disconnected. Existing requests are still held by Sapient.');
 }));
-$('#wallet-resume').addEventListener('click', event => action(event.currentTarget, async () => walletSubmission(await wallet.resumePending())));
+$('#wallet-resume').addEventListener('click', event => action(event.currentTarget, async () => walletSubmission(await wallet.resumePending()), { reviewError: true }));
 wallet.subscribe(state => {
   const connected = Boolean(state.account);
   if (!connected) { reviewerIdentity = null; $('#reviewer-wallet').value = ''; $('#reviewer-identity').hidden = true; }

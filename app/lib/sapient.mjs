@@ -196,8 +196,24 @@ export function createSapientAdapter({
     bindProvider();
     return provider;
   }
-  function call(method, params) {
-    return provider.request(params === undefined ? { method } : { method, params });
+  async function call(method, params) {
+    try {
+      return await provider.request(params === undefined ? { method } : { method, params });
+    } catch (error) {
+      // EIP-1193 providers may reject with a plain { code, message } object.
+      // Preserve that message and the failing provider method; String(object)
+      // would otherwise hide the useful error behind "[object Object]".
+      const message = typeof error?.message === 'string' && error.message ? error.message : String(error);
+      const providerCode = typeof error?.code === 'number' || typeof error?.code === 'string' ? error.code : null;
+      const unsupported = (providerCode === 4200 || providerCode === -32601) &&
+        (message === `Unsupported method: ${method}` || message === `Unknown method: ${method}`);
+      const details = `Sapient ${method}${providerCode === null ? '' : ` (${providerCode})`}: ${message}`;
+      const normalized = new SapientError(unsupported ? `${details}. Update Sapient and reload this page; this wallet API method is unavailable.` : details,
+        unsupported ? 'WALLET_METHOD_UNAVAILABLE' : 'WALLET_REQUEST_FAILED', error);
+      normalized.providerMethod = method;
+      normalized.providerCode = providerCode;
+      throw normalized;
+    }
   }
   function checkNetwork(network) {
     if (network !== expectedNetwork) throw new SapientError(`Switch Sapient to ${expectedNetwork}. Current network: ${String(network)}.`, 'WRONG_NETWORK');
@@ -289,7 +305,7 @@ export function createSapientAdapter({
     if (restorePromise) await restorePromise;
     assertAlive();
     if (busy) throw new SapientError('A wallet action is already in progress.', 'BUSY');
-    if (requestId) throw new SapientError('Resume the pending wallet request before creating another payment.', 'PENDING_REQUEST');
+    if (requestId) throw new SapientError('An existing Sapient request is still pending. Open the Sapient panel and choose Resume request before creating another approval or payment.', 'PENDING_REQUEST');
     busy = true;
     try {
       const epoch = await connection(required);
@@ -297,7 +313,14 @@ export function createSapientAdapter({
       // A lost create response leaves no ID to look up. Keep a privacy-safe marker first;
       // never open another spend request automatically after this ambiguous outcome.
       setPending(UNKNOWN_CREATE);
-      const created = await call('tari_createTransactionRequest', operation);
+      let created;
+      try { created = await call('tari_createTransactionRequest', operation); }
+      catch (error) {
+        // A confirmed unsupported create method cannot have created a request.
+        // Every ambiguous error still retains the duplicate-spend guard.
+        if (error.code === 'WALLET_METHOD_UNAVAILABLE' && error.providerMethod === 'tari_createTransactionRequest') setPending(null);
+        throw error;
+      }
       if (typeof created?.requestId !== 'string' || !created.requestId || created.requestId.length > 256) {
         throw new SapientError('The wallet did not return a request ID. Inspect Sapient before trying again.', 'INVALID_RESPONSE');
       }
@@ -421,7 +444,8 @@ export function createSapientAdapter({
         const walletAddress = await call('tari_getWalletAddress');
         checkEpoch(epoch);
         return Object.freeze({ walletAddress, publicKey: reviewerKeyFromWallet(walletAddress) });
-      } finally { busy = false; }
+      } catch (error) { throw fail(error); }
+      finally { busy = false; }
     },
     async approveMilestone({ agreement, stageId, submissionHash, maxFee } = {}, options) {
       const terms = validateAgreement(agreement);

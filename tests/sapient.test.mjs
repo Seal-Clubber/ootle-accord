@@ -235,3 +235,53 @@ test('disposing during an outstanding connection cannot restore live connection 
   assert.equal(adapter.getState().status, 'disposed');
   assert.equal(adapter.getState().account, null);
 });
+
+test('plain provider errors preserve method, code and text instead of object Object', async () => {
+  const mock = wallet(); const original = mock.provider.request;
+  mock.provider.request = args => args.method === 'tari_getNetwork'
+    ? Promise.reject({ code: -32603, message: 'Network lookup failed' }) : original(args);
+  const adapter = adapterFor(mock);
+  await assert.rejects(adapter.connect(), error => {
+    assert.equal(error.providerMethod, 'tari_getNetwork'); assert.equal(error.providerCode, -32603);
+    assert.match(error.message, /tari_getNetwork \(-32603\): Network lookup failed/);
+    assert.equal(error.message.includes('[object Object]'), false); return true;
+  });
+  assert.match(adapter.getState().error, /Network lookup failed/);
+});
+
+test('confirmed unsupported create method leaves no orphan request marker and never falls back', async () => {
+  for (const code of [4200, -32601]) {
+    const mock = wallet(); const original = mock.provider.request;
+    mock.provider.request = args => args.method === 'tari_createTransactionRequest'
+      ? Promise.reject({ code, message: 'Unsupported method: tari_createTransactionRequest' }) : original(args);
+    const storage = memoryStorage(); const adapter = adapterFor(mock, { storage }); await adapter.connect();
+    await assert.rejects(adapter.claimMilestone(claim), { code: 'WALLET_METHOD_UNAVAILABLE' });
+    assert.equal(adapter.getState().requestId, null); assert.equal(storage.values.size, 0);
+    assert.equal(mock.calls.some(c => /signAndSubmit|submitTransactionRequest/.test(c.method)), false);
+    assert.match(adapter.getState().error, /Update Sapient/);
+  }
+});
+
+test('ambiguous method errors retain the create guard and prevent another spend', async () => {
+  for (const failure of [{code:-32603,message:'Unsupported method: tari_createTransactionRequest'}, {code:-32601,message:'Method not found'}, {code:-32603,message:'Cannot call method approve'}]) {
+    const mock = wallet(); const original = mock.provider.request; let creates = 0;
+    mock.provider.request = args => {
+      if (args.method === 'tari_createTransactionRequest') { creates++; return Promise.reject(failure); }
+      return original(args);
+    };
+    const adapter = adapterFor(mock); await adapter.connect();
+    await assert.rejects(adapter.claimMilestone(claim), {code:'WALLET_REQUEST_FAILED'});
+    assert.equal(adapter.getState().requestId, 'ootleaccord:unknown-create-outcome');
+    await assert.rejects(adapter.claimMilestone(claim), {code:'PENDING_REQUEST'}); assert.equal(creates, 1);
+  }
+});
+
+test('unsupported polling methods retain the real request ID for reconciliation', async () => {
+  const mock = wallet(); const original = mock.provider.request;
+  mock.provider.request = args => args.method === 'tari_getTransactionRequest'
+    ? Promise.reject({code:4200,message:'Unsupported method: tari_getTransactionRequest'}) : original(args);
+  const adapter = adapterFor(mock); await adapter.connect();
+  await assert.rejects(adapter.claimMilestone(claim), {code:'WALLET_METHOD_UNAVAILABLE'});
+  assert.equal(adapter.getState().requestId, 'request-1');
+  assert.equal(mock.calls.some(c => c.method === 'tari_submitTransactionRequest'), false);
+});

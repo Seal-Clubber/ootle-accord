@@ -85,6 +85,9 @@ dialog::backdrop { background:#0009; }
 .checkbox-label { display:flex; align-items:flex-start; gap:10px; font-size:12px; line-height:1.6; }
 .feedback { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); padding:14px 20px; border:1px solid #587447; border-radius:8px; background:#c9eea7; color:#172215; font-size:13px; width:max-content; max-width:calc(100% - 32px); box-shadow:0 8px 30px #0003; z-index:10; }
 .feedback.error { background:#3b2826; border-color:#916153; color:#f4ddd5; }
+.review-error { margin-top:20px; padding:16px; border:1px solid #916153; border-radius:8px; background:#3b2826; color:#f4ddd5; overflow-wrap:anywhere; }
+.review-error p:first-child { font-weight:600; }
+.review-error p:last-of-type { white-space:pre-wrap; font-size:13px; }
 .sr-only,.skip-link:not(:focus) { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 .skip-link:focus { display:block; padding:12px; }
 @media(max-width:600px) { .app-header { padding:16px; } .app-shell { padding:0 16px 40px; } .network { display:none; } .header-actions { gap:8px; } .brand { font-size:16px; } .section-heading { align-items:flex-start; } .accord-card,.form-surface { padding:20px; } .accord-stats { gap:14px; } .accord-stats strong { font-size:15px; } .accord-card h2 { font-size:20px; } .designer-stage { padding:14px; } #view-review > .section-heading { flex-wrap:wrap; } }

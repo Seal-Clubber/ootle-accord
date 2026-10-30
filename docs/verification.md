@@ -1,3 +1,9 @@
+## Wallet approval error reporting — 30 October 2026
+
+Approval, creator-submission and request-resume failures now remain beside the approval button with a Copy error action. General error notices no longer time out. Provider errors preserve the method name, original error code and message, including plain EIP-1193 error objects. A positively identified unsupported create method clears only its impossible request marker; uncertain create errors and unsupported polling methods keep the duplicate-spend guard and existing request ID. No fallback transaction path or fee-privacy downgrade is used.
+
+68 JavaScript tests passed, with one Windows symlink-permission skip. Four new regression cases check error preservation, unsupported create handling, ambiguous failures and retention of existing request IDs. The user's exact installed-wallet failure still needs to be captured; this change does not establish a successful installed-Sapient approval. Chrome UI inspection was unavailable because the automation could not verify the browser URL.
+
 # Private escrow update — 30 October 2026
 
 A capped 10 tTARI escrow is funded on Esmeralda with native private outputs, one-time donor signing keys and private fee inputs. Component version 4 records two votes; the mandatory community reviewer is false and paid is false. The full remaining counter is 0. Publication, creation, public shielding, private funding, work and both test votes have committed receipts. See [current evidence and fee ledger](private-escrow-testnet.md).
