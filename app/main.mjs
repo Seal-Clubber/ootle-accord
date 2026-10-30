@@ -15,6 +15,7 @@ let stageCounter = 0;
 let reviewerCounter = 0;
 let submissionHash = null;
 let feedbackTimer;
+let failedReviewRequestId = null;
 
 function notify(message, error = false) {
   clearTimeout(feedbackTimer);
@@ -33,6 +34,9 @@ async function action(button, work, { reviewError = false } = {}) {
   catch (error) {
     const message = error?.message || 'This action could not be completed.';
     if (reviewError) {
+      const currentRequestId = wallet.getState().requestId;
+      failedReviewRequestId = currentRequestId && !currentRequestId.startsWith('ootleaccord:') ? currentRequestId : null;
+      $('#failed-request-recovery').hidden = !failedReviewRequestId;
       if ($('#wallet-dialog').open) $('#wallet-dialog').close();
       showView('review', { focus: false });
       $('#review-error-message').textContent = message;
@@ -319,8 +323,11 @@ wallet.subscribe(state => {
   $('#wallet-connect').hidden = connected;
   $('#wallet-disconnect').hidden = !connected;
   $('#wallet-resume').hidden = !state.requestId;
-  $('#failed-request-recovery').hidden = !state.requestId || state.requestId.startsWith('ootleaccord:');
-  if (!state.requestId) $('#failed-request-checked').checked = false;
+  if (state.requestId !== failedReviewRequestId) {
+    failedReviewRequestId = null;
+    $('#failed-request-checked').checked = false;
+  }
+  $('#failed-request-recovery').hidden = !failedReviewRequestId;
   const caps = state.capabilities;
   const lines = connected ? [
     `Network: ${state.network}`, `Status: ${state.status}`,
