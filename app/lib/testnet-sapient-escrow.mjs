@@ -1,4 +1,4 @@
-// Verified stock-Sapient escrow and committed 7/10 checkpoint.
+// Verified stock-Sapient escrow and completed private payout.
 import {deepFreeze} from './accord.mjs';
 export const TESTNET_SAPIENT_ESCROW = deepFreeze({
   "agreement": {
@@ -57,19 +57,32 @@ export const TESTNET_SAPIENT_ESCROW = deepFreeze({
   "agreementId": "3d2e19660a07385e212e86e80ff54e6e7d327105507b56e5ffe2763d57e1517d",
   "work": "OotleAccord — stock Sapient escrow test\n\nAcceptance criteria:\n- Native TARI is held by the Ootle escrow, with a strict 10 tTARI cap and a live remaining counter.\n- Initial funding: 7 tTARI. Reviews open at 10/10.\n- The unmodified Sapient SDK redeems only an exact-value coin with a separate private fee coin. A private self-transfer prepares an exact coin when necessary.\n- Contribution amounts are explicit. The escrow deposit omits the donor base wallet address and uses one-time signers; transaction history can still link activity.\n- Each contribution creates an encrypted, zero-value Sapient memo receipt for recovery of its fixed private refund.\n- Three of five reviewers must approve this fingerprint, including the community reviewer. The four other reviewers share a test operator.\n- No payout before the required approval. Payout is fixed to the isolated test wallet, and eligible unpaid contributions are refundable from epoch 14739.\n- A separate organizer fee reserve pays private return fees without reducing contributed principal.\n",
   "submissionHash": "4e8c2271be43864ecad43eed76c01d1ba57b9d3b880840e4e0e782e1f0f55dfe",
-  "recordedApprovals": 0,
-  "recordedRequiredReviewerApproved": false,
-  "recordedFundingUnits": "7000000",
-  "recordedEpoch": 12739,
+  "recordedApprovals": 3,
+  "recordedRequiredReviewerApproved": true,
+  "recordedFundingUnits": "0",
+  "recordedEpoch": 12740,
   "component": "component_1baffe14c156f3cea0aee845416827d72646b7285802a84ba2066d950d9d7fc1",
   "templateAddress": "bc30266a3c2d025a02aa723b1de4396788c8c477b3dc1c5798bce4ca49a2d5a0",
   "principalVault": "vault_1b643d19814b15c6ee77a0bc58134283af521450362ecfd881a986c40698d4e0",
   "feeVault": "vault_1b6d2778e572a3d66ec9623f3dfe41751ca65ff1e69a26f7e16a14a894ea9929",
   "constructorTransaction": "1bee76ac4e606f90fc9e7b581179e02dedc97504068161eee21c496e349303a1",
-  "recordedVersion": 2,
+  "recordedVersion": 7,
   "payoutReceiptCommitment": "74f5d0b98ffaa0a0e6899546fe8dcec699924973162c840bbb511e4ddb642b72",
   "fundingTransaction": "ae720780bb5983e1697026465463027d893de78f42926c99e3427659a3f18bd0",
   "workTransaction": "c87606b5315aec8423970aea95975413ecb88ca4dd67e938283df50688926bb5",
-  "checkpointTransaction": "c87606b5315aec8423970aea95975413ecb88ca4dd67e938283df50688926bb5",
-  "receiptsPath": "./docs/sapient-escrow-testnet.md"
+  "checkpointTransaction": "f123a55e98ace8fc248a43c0baf03b32b7c7bbab903ed2fc157c91fb4fb9e026",
+  "receiptsPath": "./docs/sapient-escrow-testnet.md",
+  "recordedPaid": true,
+  "recordedVotes": [
+    true,
+    true,
+    true,
+    false,
+    false
+  ],
+  "recordedApproved": true,
+  "finalFundingTransaction": "204572c42dc6274a635645d40d0dae687f153a13f44adf6a07037be34d7ac28b",
+  "communityApprovalTransaction": "761433bd6f8664f13d015a76301400b0bfcf627b008a1baf8da8a15dc226af62",
+  "payoutTransaction": "0e360bc4d683c25fc843aeaa7a41e0fbb6f157e10ba5c133e065c6407d323b79",
+  "payoutCommitment": "b6086d5d0fe7d3711ea3a94fe98146af35a6ec706df133eed5f6205ba9226b1d"
 });

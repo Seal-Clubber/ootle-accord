@@ -2,6 +2,10 @@
 
 Verified 30 October 2026. This v5 deployment uses stock Sapient’s existing private-fee redemption method and a new Ootle escrow template. No Sapient patch or intermediate app funding wallet is used.
 
+## Completed live payout
+
+The community wallet funded the remaining 3 tTARI and recorded the required vote. Two dedicated test-wallet votes completed the quorum. The fixed private **10 tTARI payout committed**, and the isolated recipient wallet decrypted/indexed it as an on-chain, unspent output of exactly 10 tTARI. The organizer then recovered its unused sponsor reserve. No campaign principal remains in escrow.
+
 ## Committed state
 
 | Field | Value |
@@ -9,14 +13,15 @@ Verified 30 October 2026. This v5 deployment uses stock Sapient’s existing pri
 | Agreement | `3d2e19660a07385e212e86e80ff54e6e7d327105507b56e5ffe2763d57e1517d` |
 | Template | `bc30266a3c2d025a02aa723b1de4396788c8c477b3dc1c5798bce4ca49a2d5a0` |
 | Escrow | `component_1baffe14c156f3cea0aee845416827d72646b7285802a84ba2066d950d9d7fc1` |
-| Goal / locked / remaining | **10 / 7 / 3 tTARI** |
-| Votes | **0**, with the community reviewer mandatory |
+| Goal / paid / remaining capacity | **10 / 10 / 0 tTARI** |
+| Locked principal / paid flag | **0 tTARI / true** |
+| Votes | **3**, including the required community reviewer |
 | Quorum | 60% of five, rounded up to three; four reviewers share a test operator |
 | Refund deadline | Chain epoch **14739** |
-| Checkpoint | Component version **2**, epoch **12739** |
+| Checkpoint | Component version **7**, epoch **12740** |
 | Work fingerprint | `4e8c2271be43864ecad43eed76c01d1ba57b9d3b880840e4e0e782e1f0f55dfe` |
 
-Review is rejected before full funding. After full funding, approval requires both the quorum and the community vote. Payout is fixed to an isolated test-wallet destination and has not been executed. Older immutable escrows retain their earlier custody and receipts; this is a new component.
+Review is rejected before full funding. After full funding, approval requires both the quorum and the community vote. Payout was fixed to the isolated test-wallet destination and is now complete. Older immutable escrows retain their earlier custody and receipts; this is a separate component.
 
 ## Live transaction receipts
 
@@ -30,6 +35,22 @@ Review is rejected before full funding. After full funding, approval requires bo
 | Submit work; no votes cast | [c87606b5…](https://ootle-indexer-a.tari.com/transactions/c87606b5315aec8423970aea95975413ecb88ca4dd67e938283df50688926bb5/result) | 0.003162 |
 
 All six receipts finalized with `Commit`. New paid fees total **3.741912 tTARI**. Including 5.414526 tTARI from earlier test work, the cumulative test fee ledger is **9.156438 tTARI**, below the authorized 10 tTARI fee limit. Transferred principal and the held 1.6 tTARI sponsor reserve are separate from fees paid.
+
+### Completion receipts
+
+| Operation | Receipt | Paid fee (tTARI) |
+| --- | --- | --- |
+| Final 3 tTARI contribution | [204572c4…](https://ootle-indexer-a.tari.com/transactions/204572c42dc6274a635645d40d0dae687f153a13f44adf6a07037be34d7ac28b/result) | 0.100000 |
+| Required community vote, reviewer index 2 | [761433bd…](https://ootle-indexer-a.tari.com/transactions/761433bd6f8664f13d015a76301400b0bfcf627b008a1baf8da8a15dc226af62/result) | 0.100000 |
+| Repeat community vote, fee intent only; no new vote | [00ca74f9…](https://ootle-indexer-a.tari.com/transactions/00ca74f9e5ad1176da5cf3d3ed43e471328e6a50d092a997fc879f136b39e73a/result) | 0.100000 |
+| Test reviewer index 0 | [ff167535…](https://ootle-indexer-a.tari.com/transactions/ff167535eb3af4701c0afa7a3792e2393e855b884f1b3a623cf85bb531b8765b/result) | 0.003290 |
+| Test reviewer index 1 | [7aa45043…](https://ootle-indexer-a.tari.com/transactions/7aa45043cd4c490f41905d8158e668a04d1a56b9c31713a6380d38f453eadcec/result) | 0.003290 |
+| Full private 10 tTARI payout | [0e360bc4…](https://ootle-indexer-a.tari.com/transactions/0e360bc4d683c25fc843aeaa7a41e0fbb6f157e10ba5c133e065c6407d323b79/result) | 0.013246 |
+| Return unused sponsor reserve | [f123a55e…](https://ootle-indexer-a.tari.com/transactions/f123a55e98ace8fc248a43c0baf03b32b7c7bbab903ed2fc157c91fb4fb9e026/result) | 0.003129 |
+
+The agent-operated completion fees were **0.022955 tTARI**, bringing the isolated test-wallet fee ledger to **9.179393 tTARI**. The three participant-paid fees above are listed separately. The unused **1.586754 tTARI** sponsor reserve was returned to its original isolated wallet. Both the principal and sponsor vaults are empty. The payout is `utxo_0101010101010101010101010101010101010101010101010101010101010101_b6086d5d0fe7d3711ea3a94fe98146af35a6ec706df133eed5f6205ba9226b1d`; its authorization matches the agreement’s fixed payout key.
+
+The repeat vote did not add an approval: its execution accepted fees and rejected the repeated vote. The app now checks the verified live reviewer bit before creating a wallet request, blocks repeats and paid accords, and keeps the button disabled after a successful vote. A page reload cannot bypass that check. A consensus `Commit` decision alone is not enough to establish successful execution; the accepted state transition and actual vote/output must also be checked.
 
 [Current component](https://ootle-indexer-a.tari.com/substates/component_1baffe14c156f3cea0aee845416827d72646b7285802a84ba2066d950d9d7fc1), [published template definition](https://ootle-indexer-a.tari.com/templates/bc30266a3c2d025a02aa723b1de4396788c8c477b3dc1c5798bce4ca49a2d5a0).
 
@@ -71,6 +92,6 @@ Three native lifecycle tests passed against both source-compiled code and the **
 
 The JavaScript tests cover browser WASM, exact private coin selection, stale state, permission refusal, account changes, memo restoration and saving public transaction IDs before broadcast. The interface has amount/Max, exact-coin preparation, direct stock-Sapient deposit, memo lookup and eligibility-gated return controls. Public native returns are simulated first and never blindly retried after an ambiguous network response.
 
-Live payout/refund and the user’s installed-extension approval have **not** been executed. The 7 tTARI remains locked. The user’s approval must wait for 10/10 funding. No claim is made that the current demonstration completes the entire live campaign lifecycle.
+The live community funding, required signature, quorum and full private payout are complete. The final 3 tTARI signed deposit was also checked to omit the known community reviewer’s base key. Public transaction history can still link funding and review activity. No independent inspection of the participant’s installed extension or claim of donor anonymity is made. Expiry refunds have been exercised in the native engine but not on the live paid campaign, whose contributions are now settled.
 
-Network dry-runs of the real fixed-return envelopes rejected early refund with `Refund not eligible` and incomplete-funding payout with `Payout not authorized`. These checks did not broadcast transactions or pay fees.
+Before completion, network dry-runs rejected early refund with `Refund not eligible` and incomplete-funding payout with `Payout not authorized`. These checks did not broadcast transactions or pay fees. The later authorized payout passed a fresh dry-run, committed, and was verified in the recipient wallet.

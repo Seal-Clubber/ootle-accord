@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {TESTNET_SAPIENT_ESCROW as demo} from '../app/lib/testnet-sapient-escrow.mjs';
+import {TESTNET_SAPIENT_ESCROW as current} from '../app/lib/testnet-sapient-escrow.mjs';
 import {NATIVE_TARI_RESOURCE as TARI,agreementId,validateAgreement} from '../app/lib/accord.mjs';
 import {parseEscrowSubstate,contributionAmount,canApproveEscrow} from '../app/lib/escrow-funding.mjs';
 import {fundingCoins,selectFundingCoins} from '../app/lib/stock-funding.mjs';
@@ -9,6 +9,7 @@ import {createSapientAdapter} from '../app/lib/sapient.mjs';
 import init,{makeReturnNote,publicReturnBinding} from '../app/lib/stock-crypto/accord_sapient_client.js';
 await init({module_or_path:await readFile(new URL('../app/lib/stock-crypto/accord_sapient_client_bg.wasm',import.meta.url))});
 const fixture=JSON.parse(await readFile(new URL('./fixtures/sapient-escrow-substate.json',import.meta.url),'utf8'));
+const demo={...current,recordedVersion:2,recordedEpoch:12739};
 const state=()=>parseEscrowSubstate(fixture,demo,demo.recordedEpoch);
 const source='a'.repeat(64),fee='b'.repeat(64),receipt='c'.repeat(64),sourceKey='d'.repeat(64);
 const coin=(commitment,amount)=>({resourceAddress:TARI,commitment,amount});
@@ -43,7 +44,7 @@ test('coin selection never reveals a larger balance and never spends zero-value 
  assert.deepEqual(fundingCoins([coin(receipt,'0')]),[]);
  assert.throws(()=>fundingCoins([coin(source,'1'),coin(source,'1')]));assert.throws(()=>fundingCoins([coin(source,3)]));
 });
-function mockWallet({records=[coin(source,'3000000'),coin(fee,'500000')],grant=true,viewAllowed=true,live=state(),onRead}={}){
+function mockWallet({records=[coin(source,'3000000'),coin(fee,'500000')],grant=true,viewAllowed=true,live=state(),onRead,walletAddress=demo.agreement.creatorWalletAddress}={}){
  const calls=[];let status='approved';let accountChanged;
  const caps={transactionRequests:true,supportsPrivateFees:true,privateBalanceView:true,stealthRedeemPrivateFee:true,walletAddress:true,privateSpend:true};
  const result={transactionId:'f'.repeat(64),feeChangeCommitment:'e'.repeat(64),recipientCommitment:'9'.repeat(64)};
@@ -53,7 +54,7 @@ function mockWallet({records=[coin(source,'3000000'),coin(fee,'500000')],grant=t
   case'tari_getViewAccess':return{granted:grant};case'tari_requestViewAccess':return{granted:viewAllowed};
   case'tari_getShieldedOutputs':onRead?.();return records;
   case'tari_getSubstate':return{verified:true,state:{up:{substate:{Utxo:{output:{auth:{Key:sourceKey}}}}}}};
-  case'tari_getWalletAddress':return demo.agreement.creatorWalletAddress;
+  case'tari_getWalletAddress':return walletAddress;
   case'tari_createTransactionRequest':return{requestId:'request-1'};
   case'tari_submitTransactionRequest':status='submitted';return result;
   case'tari_getTransactionRequest':return{status,...(status==='submitted'?{result}:{})};
@@ -94,4 +95,21 @@ test('memo recovery matches a wallet-derived return against verified contract bi
  await m.adapter.connect();const found=await m.adapter.loadReturnReceipts(demo);
  assert.equal(found.receipts.length,1);assert.equal(found.receipts[0].index,0);assert.deepEqual(found.receipts[0].binding,binding);
  assert.equal(m.calls.some(c=>c.method==='tari_createTransactionRequest'),false);assert.equal(m.storage.size,0);
+});
+test('paid checkpoint shows the required vote and exact fixed private payout without reopening funding',async()=>{
+ const paid=JSON.parse(await readFile(new URL('./fixtures/sapient-escrow-paid.json',import.meta.url),'utf8'));
+ const s=parseEscrowSubstate(paid,current,current.recordedEpoch);
+ assert.equal(s.paid,true);assert.equal(s.fundedUnits,'0');assert.equal(s.remainingUnits,'0');assert.equal(s.approvals,3);assert.equal(s.requiredReviewerApproved,true);
+ assert.deepEqual(s.votes,[true,true,true,false,false]);assert.equal(canApproveEscrow(s,current.submissionHash,2),false);
+});
+test('an already-recorded reviewer vote and a completed payout cannot open another paid Sapient request',async()=>{
+ const full={...state(),fundedUnits:'10000000',fullyFunded:true,remainingUnits:'0'};
+ for(const [live,code]of [[{...full,votes:[false,false,true,false,false]},'ALREADY_APPROVED'],[{...full,paid:true},'ALREADY_PAID'],[state(),'REVIEW_NOT_READY']]){
+  const m=mockWallet({live,walletAddress:demo.agreement.milestones[0].reviewers[2].walletAddress});await m.adapter.connect();
+  await assert.rejects(m.adapter.approveMilestone({agreement:demo.agreement,deployment:demo,stageId:'delivery',submissionHash:demo.submissionHash,maxFee:'100000'}),{code});
+  assert.equal(m.calls.some(c=>c.method==='tari_createTransactionRequest'),false);
+ }
+ const m=mockWallet({live:full,walletAddress:demo.agreement.milestones[0].reviewers[2].walletAddress});await m.adapter.connect();
+ await m.adapter.approveMilestone({agreement:demo.agreement,deployment:demo,stageId:'delivery',submissionHash:demo.submissionHash,maxFee:'100000'});
+ assert.equal(m.calls.filter(c=>c.method==='tari_createTransactionRequest').length,1);
 });

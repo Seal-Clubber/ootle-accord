@@ -24,8 +24,9 @@ export function contributionAmount(value, state) {
   return amount;
 }
 
-export function canApproveEscrow(state, submissionHash) {
+export function canApproveEscrow(state, submissionHash, reviewerIndex = null) {
   return Boolean(state?.fullyFunded && !state.paid && !state.expired && !state.approved &&
+    (reviewerIndex === null || (Number.isInteger(reviewerIndex) && state.votes?.[reviewerIndex] === false)) &&
     typeof submissionHash === 'string' && /^[a-f0-9]{64}$/.test(submissionHash) && state.submissionHash === submissionHash);
 }
 
@@ -49,7 +50,7 @@ export function parseEscrowSubstate(response, deployment, epoch) {
   }
   const funding = fundingState({ targetUnits: stage.targetUnits, fundedUnits: uint(s[9]), paid: s[16], epoch: uint(epoch), deadline: stage.refundEpoch });
   const approvals = s[11].filter(Boolean).length;
-  return Object.freeze({ ...funding, version: response.version, epoch: uint(epoch), approvals,
+  return Object.freeze({ ...funding, version: response.version, epoch: uint(epoch), approvals, votes: Object.freeze([...s[11]]),
     requiredReviewerApproved: s[11][requiredIndex], approved: approvals >= requiredApprovals(stage.reviewers.length, stage.approvalPercent) && s[11][requiredIndex],
     submissionHash: s[10] });
 }
@@ -94,7 +95,7 @@ export function parseStockEscrowSubstate(response, deployment, epoch) {
   const state = fundingState({ targetUnits: stage.targetUnits, fundedUnits: funded, paid: s[19], epoch: uint(epoch), deadline: stage.refundEpoch });
   const approvals = s[12].filter(Boolean).length;
   return Object.freeze({ ...state, remainingUnits: keys.length >= 16 ? '0' : state.remainingUnits,
-    version: response.version, epoch: uint(epoch), approvals, requiredReviewerApproved: s[12][requiredIndex],
+    version: response.version, epoch: uint(epoch), approvals, votes: Object.freeze([...s[12]]), requiredReviewerApproved: s[12][requiredIndex],
     approved: approvals >= requiredApprovals(stage.reviewers.length, stage.approvalPercent) && s[12][requiredIndex], submissionHash: s[11],
     payoutBinding, refundBindings: Object.freeze(refundBindings), refunded: Object.freeze([...refunded]), principalVault, feeVault,
     receiptCommitments: Object.freeze(receiptCommitments), payoutReceiptCommitment });

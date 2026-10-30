@@ -15,6 +15,7 @@ const wallet = createSapientAdapter();
 let returns;
 try { returns = createReturnClient(); } catch { /* Funding remains usable if return tracking storage is blocked. */ }
 let reviewerIdentity = null;
+let ownReviewVote = null;
 let reviewAgreement = null;
 let stageCounter = 0;
 let reviewerCounter = 0;
@@ -103,18 +104,22 @@ const accordCards = new Map();
 let reviewLoad = 0;
 function selectedFunding() { return accordCards.get(activeAccord.agreementId)?.state; }
 function approvalUnavailable() {
-  return !canApproveEscrow(selectedFunding(), submissionHash);
+  const stage = reviewAgreement?.milestones[0];
+  const index = reviewerIdentity ? stage?.reviewers.findIndex(r => r.publicKey === reviewerIdentity.publicKey) : null;
+  return (ownReviewVote?.agreementId === activeAccord.agreementId && ownReviewVote.account === wallet.getState().account) ||
+    !canApproveEscrow(selectedFunding(), submissionHash, index);
 }
 function syncReviewState() {
   if (!reviewAgreement) return;
   const state = selectedFunding();
   const stage = reviewAgreement.milestones.find(s => s.id === $('#review-stage').value);
   const required = requiredApprovals(stage.reviewers.length, stage.approvalPercent);
-  const amount = fromRawAmount(state.fundedUnits) + ' / ' + fromRawAmount(state.targetUnits) + ' tTARI funded';
+  const amount = state.paid ? fromRawAmount(state.targetUnits) + ' tTARI paid to the creator' : fromRawAmount(state.fundedUnits) + ' / ' + fromRawAmount(state.targetUnits) + ' tTARI funded';
   const status = state.paid ? 'Payout completed.' : state.expired ? 'The funding and review deadline has passed.' : !state.fullyFunded
     ? 'Approval opens after the remaining ' + fromRawAmount(state.remainingUnits) + ' tTARI is funded. The community reviewer’s vote will be required.'
     : state.approvals + ' of ' + required + ' approvals. ' + (state.requiredReviewerApproved ? 'The required community vote is recorded.' : 'Waiting for the required community vote.');
   $('#review-output').textContent = amount + ' · ' + status;
+  $('#submit-work').closest('details').hidden = state.paid || state.expired || state.approvals > 0;
   $('#review-fund').hidden = state.fullyFunded || state.expired || state.paid;
   $('#review-fund').textContent = 'Fund this accord · ' + fromRawAmount(state.remainingUnits) + ' tTARI remaining';
   $('#approve-review').disabled = !submissionHash || Boolean(approvalUnavailable());
@@ -127,12 +132,13 @@ function renderAccordCard(card, state, live = false) {
   const ui = name => node.querySelector('[data-ui="' + name + '"]');
   const stage = deployment.agreement.milestones[0];
   const required = requiredApprovals(stage.reviewers.length, stage.approvalPercent);
-  ui('funded-amount').textContent = fromRawAmount(state.fundedUnits) + ' / ' + fromRawAmount(state.targetUnits) + ' tTARI';
+  ui('funded-label').textContent = state.paid ? 'Paid to creator' : 'Locked in escrow';
+  ui('funded-amount').textContent = state.paid ? fromRawAmount(state.targetUnits) + ' tTARI' : fromRawAmount(state.fundedUnits) + ' / ' + fromRawAmount(state.targetUnits) + ' tTARI';
   ui('remaining-amount').textContent = fromRawAmount(state.remainingUnits) + ' tTARI';
-  ui('funding-progress').value = Number(BigInt(state.fundedUnits) * 10000n / BigInt(state.targetUnits)) / 100;
+  ui('funding-progress').value = state.paid ? 100 : Number(BigInt(state.fundedUnits) * 10000n / BigInt(state.targetUnits)) / 100;
   const closed = state.remainingUnits === '0' || state.expired || state.paid;
   ui('fund-accord').disabled = closed;
-  ui('fund-accord').textContent = state.fullyFunded ? 'Fully funded' : closed ? 'Funding closed' : 'Fund this accord';
+  ui('fund-accord').textContent = state.paid ? 'Paid out' : state.fullyFunded ? 'Fully funded' : closed ? 'Funding closed' : 'Fund this accord';
   ui('funding-availability').hidden = closed;
   ui('contribution-limit').textContent = 'Maximum contribution: ' + fromRawAmount(state.remainingUnits) + ' tTARI. The escrow rejects overfunding.';
   if (closed) { ui('funding-panel').hidden = true; ui('fund-accord').setAttribute('aria-expanded', 'false'); }
@@ -170,7 +176,8 @@ for (const deployment of TESTNET_ACCORDS) {
     ui('funding-disclosure').textContent = 'This earlier escrow cannot accept stock Sapient deposits. Use the latest accord above.';
     ui('funding-fee').hidden = true; ui('funding-view-note').hidden = true;
   }
-  const state = { ...fundingState({ targetUnits: stage.targetUnits, fundedUnits: deployment.recordedFundingUnits, epoch: deployment.recordedEpoch, deadline: stage.refundEpoch }), approvals: deployment.recordedApprovals, requiredReviewerApproved: deployment.recordedRequiredReviewerApproved || false, approved: false, submissionHash: deployment.submissionHash };
+  const state = { ...fundingState({ targetUnits: stage.targetUnits, fundedUnits: deployment.recordedFundingUnits, paid: deployment.recordedPaid ?? false, epoch: deployment.recordedEpoch, deadline: stage.refundEpoch }), approvals: deployment.recordedApprovals, votes: deployment.recordedVotes,
+    requiredReviewerApproved: deployment.recordedRequiredReviewerApproved || false, approved: deployment.recordedApproved ?? false, submissionHash: deployment.submissionHash };
   const card = { deployment, node, state, live: null };
   accordCards.set(deployment.agreementId, card);
   renderAccordCard(card, state);
@@ -348,8 +355,11 @@ $('#review-form').addEventListener('submit', event => {
     if (approvalUnavailable()) throw new Error('This accord is not ready for approval. Refresh its balance and wait for full funding.');
     if (!wallet.getState().account) await wallet.connect();
     if (activeAccord !== deployment) throw new Error('The selected accord changed. Review its work before approving.');
-    const result = await wallet.approveMilestone({ agreement, stageId, submissionHash: workHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
+    const result = await wallet.approveMilestone({ agreement, deployment, stageId, submissionHash: workHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
+    ownReviewVote = { agreementId: deployment.agreementId, account: wallet.getState().account };
     walletSubmission(result, $('#review-output'));
+    try { const fresh = await refreshEscrow(deployment); renderAccordCard(accordCards.get(deployment.agreementId), fresh, true); }
+    catch { /* The successful vote stays disabled even while the public checkpoint catches up. */ }
   }, { reviewError: true });
 });
 
@@ -380,8 +390,8 @@ $('#clear-failed-request').addEventListener('click', event => action(event.curre
   await wallet.dismissFailedRequest({ confirmed: true });
   $('#failed-request-checked').checked = false;
   $('#review-error').hidden = true;
-  $('#review-output').textContent = 'Previous failed request cleared from this app. Press Approve in Sapient to create a fresh approval. No transaction was sent by clearing it.';
-  notify('Failed request cleared. You can create a new approval.');
+  $('#review-output').textContent = 'Previous failed request cleared from this app. Check the accord’s current status; an approval already recorded on-chain does not need to be repeated. No transaction was sent by clearing it.';
+  notify('Failed request cleared. Check the accord’s current status.');
 }, { reviewError: true }));
 
 function walletSubmission(result, output) {
@@ -404,6 +414,7 @@ $('#wallet-disconnect').addEventListener('click', event => action(event.currentT
 $('#wallet-resume').addEventListener('click', event => action(event.currentTarget, async () => walletSubmission(await wallet.resumePending()), { reviewError: true }));
 wallet.subscribe(state => {
   const connected = Boolean(state.account);
+  if (ownReviewVote && ownReviewVote.account !== state.account) ownReviewVote = null;
   if (!connected) { reviewerIdentity = null; $('#reviewer-wallet').value = ''; $('#reviewer-identity').hidden = true; }
   $('#wallet-open').textContent = connected ? 'Sapient connected' : state.status === 'restoring' ? 'Checking Sapient…' : state.status === 'connecting' ? 'Connecting…' : 'Connect Sapient';
   $('#wallet-connect').hidden = connected;

@@ -19,4 +19,3 @@ tari_crypto = "=0.24.0"
 ootle_byte_type = { version = "=0.17.0", features = ["crypto"] }
 rand = "0.10"
 tari_ootle_wallet_crypto = "=0.48.0"
-

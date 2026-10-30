@@ -7,7 +7,7 @@ import { reviewerKeyFromWallet } from './wallet-address.mjs';
 import { REVIEW_DEPLOYMENTS, REVIEW_DEPENDENCIES } from './review-deployments.mjs';
 import { fundingCoins, selectFundingCoins, assertLivePrivateCoin } from './stock-funding.mjs';
 import { makeFundingReturn, makeFundingArgs, restoreMemoReceipt } from './stock-client.mjs';
-import { refreshEscrow } from './escrow-funding.mjs';
+import { refreshEscrow, canApproveEscrow } from './escrow-funding.mjs';
 
 const UINT64_MAX = (1n << 64n) - 1n;
 const RESOURCE = /^resource_[a-f0-9]{64}$/i;
@@ -612,7 +612,8 @@ export function createSapientAdapter({
       } catch (error) { throw fail(error); }
       finally { busy = false; }
     },
-    async approveMilestone({ agreement, stageId, submissionHash, maxFee } = {}, options) {
+    async approveMilestone({ agreement, deployment, stageId, submissionHash, maxFee } = {}, options) {
+      const approvalGeneration = generation;
       const terms = validateAgreement(agreement);
       if (![QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA].includes(terms.schema)) throw new SapientError('Open a percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
       const stage = terms.milestones.find(item => item.id === stageId);
@@ -625,8 +626,16 @@ export function createSapientAdapter({
       const identity = await api.getReviewerIdentity();
       const index = stage.reviewers.findIndex(reviewer => reviewer.publicKey === identity.publicKey);
       if (index < 0) throw new SapientError('Connect one of the designated reviewer wallets.', 'WRONG_REVIEWER');
+      if (terms.schema === SAPIENT_ESCROW_SCHEMA) {
+        if (deployment?.component !== component || deployment?.agreementId !== id || await agreementId(deployment.agreement) !== id) throw new SapientError('Open the verified escrow before approving.', 'REVIEW_NOT_DEPLOYED');
+        const live = await escrowReader(deployment);
+        checkEpoch(approvalGeneration, options?.signal);
+        if (live.paid) throw new SapientError('The payout is already complete. No approval transaction was created.', 'ALREADY_PAID');
+        if (live.votes?.[index] === true) throw new SapientError('Your approval is already recorded. No additional wallet request or fee is needed.', 'ALREADY_APPROVED');
+        if (!canApproveEscrow(live, submissionHash, index)) throw new SapientError('This work is not ready for another approval. Refresh the accord first.', 'REVIEW_NOT_READY');
+      }
       try {
-        return await transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [cborReviewerIndex(index), hashArg] } }], inputs: reviewInputs(expectedNetwork, component), ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
+        return await transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'approve', args: [cborReviewerIndex(index), hashArg] } }], inputs: reviewInputs(expectedNetwork, component), ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], { ...options, expectedGeneration: approvalGeneration });
       } catch (error) {
         if (!isSpentNativeInput(error)) throw error;
         throw fail(new SapientError('Sapient tried to use an already-spent private tTARI output for the approval fee.\n\nOpen Sapient’s home screen and let its private-coin refresh finish. Check the failed request in Sapient, then use Clear failed request before approving again. If the same error remains, update Sapient.\n\nWallet details: ' + error.message, 'SPENT_PRIVATE_FEE_INPUT', error));

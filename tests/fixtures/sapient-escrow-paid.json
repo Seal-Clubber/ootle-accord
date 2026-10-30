@@ -1,0 +1,133 @@
+{
+  "version": 7,
+  "state": {
+    "up": {
+      "substate": {
+        "Component": {
+          "header": {
+            "template_address": "bc30266a3c2d025a02aa723b1de4396788c8c477b3dc1c5798bce4ca49a2d5a0",
+            "owner_rule": "None",
+            "access_rules": {
+              "method_access": {},
+              "default": "AllowAll"
+            },
+            "entity_id": "1b"
+          },
+          "body": {
+            "state": [
+              "3d2e19660a07385e212e86e80ff54e6e7d327105507b56e5ffe2763d57e1517d",
+              "delivery",
+              {
+                "@cbor": "bytes",
+                "hex": "5ad6cb9d9ae794119bfc14cd467032e9e671ea9d9c5fccfea86250b046de8d6c"
+              },
+              {
+                "@cbor": "bytes",
+                "hex": "02bc8074a4042632515042f79bb9687259cd5b3e0f9893376ec7048280c4153c"
+              },
+              {
+                "@cbor": "bytes",
+                "hex": "aa1f02dffe3c868f14c33a736b8b7cd9e17f61742304bba0b23b56a3646c283b"
+              },
+              [
+                {
+                  "@cbor": "bytes",
+                  "hex": "ba60416b012dfb56faf681121040345bf289aea500545f438714d2b1829c061d"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "863454acb813f86c64fcb0342030e65d37a99d3258bccf910be587e164e42a18"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "626f4bafd6703c73160f05b4aeadf36bad31de0844eb406dbda2b15ba1f3d902"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "841088f02777bbc6ce973adaa7e763d714f53365937c6b8500a02582e61a4b02"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "420201912be9c443aa4f162620a09495d4b4a43566b66ce6e7ea70bd5e9aa853"
+                }
+              ],
+              60,
+              2,
+              10000000,
+              14739,
+              0,
+              "4e8c2271be43864ecad43eed76c01d1ba57b9d3b880840e4e0e782e1f0f55dfe",
+              [
+                true,
+                true,
+                true,
+                false,
+                false
+              ],
+              {
+                "@cbor": "tag",
+                "tag": 132,
+                "value": {
+                  "@cbor": "bytes",
+                  "hex": "1b643d19814b15c6ee77a0bc58134283af521450362ecfd881a986c40698d4e0"
+                }
+              },
+              {
+                "@cbor": "tag",
+                "tag": 132,
+                "value": {
+                  "@cbor": "bytes",
+                  "hex": "1b6d2778e572a3d66ec9623f3dfe41751ca65ff1e69a26f7e16a14a894ea9929"
+                }
+              },
+              [
+                {
+                  "@cbor": "bytes",
+                  "hex": "e85327b1f466e483f20aeb926472c7a1918d9cff49e5765e4f437b9d4397b874"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "5693ecda07a3bf4b25c31118132cce8fee38f293488c5244db46fd0181e51f35"
+                }
+              ],
+              [
+                {
+                  "@cbor": "bytes",
+                  "hex": "406c2716408c127ac3fd1faa40e518b3cbd32a0d0ac6f44ef18de9e04bbd2e21"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "ec740e7c0623e1f6187a2268a6a69a461b9264c76f0817794ccd6f67bfd85b24"
+                }
+              ],
+              [
+                7000000,
+                3000000
+              ],
+              [
+                false,
+                false
+              ],
+              true,
+              [
+                {
+                  "@cbor": "bytes",
+                  "hex": "e871e7009ae89a212f1a9a912bdaf96e4f15347764b337273ebd2cbaba07d001"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "8ec2d788c3632aaa25c74acb48fbd59e734591c6a20754de11a7f35eedd02957"
+                }
+              ],
+              {
+                "@cbor": "bytes",
+                "hex": "74f5d0b98ffaa0a0e6899546fe8dcec699924973162c840bbb511e4ddb642b72"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "verified": true
+}

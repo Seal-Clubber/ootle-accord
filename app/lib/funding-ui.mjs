@@ -116,7 +116,8 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
     if (!returns) throw new Error('Return tracking is unavailable in this browser.');
     await connected(); message('Reading your encrypted return memos in Sapient…', false, 'returns-status');
     const found = await wallet.loadReturnReceipts(deployment); await refresh(); receipts = found.receipts; showReturns();
-    message(!receipts.length ? 'No return memos for this accord were found in the connected wallet.' : card.state.expired
+    message(!receipts.length ? 'No return memos for this accord were found in the connected wallet.' : card.state.paid
+      ? 'This accord has paid out. Its contributions are settled; no refund is due.' : card.state.expired
       ? 'Unpaid, unrefunded contributions can be returned to their fixed Sapient destinations.'
       : 'Your memos are recovered. Refunds open at chain epoch ' + deployment.agreement.milestones[0].refundEpoch + ' if the contribution remains unpaid. Creator payout requires full funding and the required approvals.', false, 'returns-status');
   }, 'returns-status'));

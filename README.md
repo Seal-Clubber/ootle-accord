@@ -4,13 +4,15 @@ Community milestone funding on Tari Ootle, with stock Sapient integration.
 
 [Open the app](https://seal-clubber.github.io/ootle-accord/#explore) · [Live receipts and privacy limits](docs/sapient-escrow-testnet.md)
 
-The latest Esmeralda accord holds **7 / 10 tTARI**, with **3 tTARI remaining** at its recorded checkpoint. Funding uses the unmodified Sapient SDK. The escrow holds the coins, rejects overfunding, and opens review only at 10/10. Three of five reviewers must approve, including the community reviewer. Four reviewers share a test operator. No payout has been made.
+The latest Esmeralda accord completed its live funding and payout: **10 tTARI funded and privately paid to the fixed creator wallet**. It began at 7/10; a community wallet funded the final 3 and recorded the required approval. Two test-wallet votes completed the three-of-five quorum. Four designated reviewers share a test operator. The recipient wallet verified the full 10 tTARI as an unspent private output. Further funding is closed.
 
 Contribution amounts and the exact remaining counter are public. The deposit uses one-time signing keys and omits the donor’s base wallet address. Wallet preparation, transaction history and timing can still link activity. This does not establish donor anonymity.
 
 ## Use it
 
-1. Open **Community accord · Sapient**, then **Fund this accord**.
+The current **Community accord · Sapient** is complete. Its work, three recorded approvals, paid status and receipts remain visible. For a new, open deployment, the flow is:
+
+1. Open the accord, then **Fund this accord**.
 2. Choose an amount or **Max**, then **Check coins in Sapient**. This explicitly requests a private view grant to read coin amounts and memos; they stay in tab memory. Seeds, view secrets and wallet spending keys stay in Sapient.
 3. If necessary, approve **Prepare exact coin**: a private transfer to yourself within Sapient. Then approve **Fund in Sapient** separately. Each transaction has a private fee limit of 0.1 tTARI. The app never redeems a larger coin to reveal the rest of your balance.
 4. After full funding, reviewers can approve the submitted work. Payout needs the percentage quorum and the mandatory reviewer.
@@ -49,7 +51,7 @@ Memo recovery was tested on Esmeralda using a fresh local SDK ledger and the sam
 
 ## Validation and builds
 
-The JavaScript suite covers exact amounts, fixed terms, chain parsing, coin liveness/selection, stale funding, account changes, wallet request recovery, memo restoration, browser WASM and duplicate-return guards. Mock provider tests do not prove an installed-extension round trip. Native Tari-engine tests exercise real encrypted deposits, caps, required votes, payout, refunds and receipt encryption. The same three escrow lifecycle tests passed against the exact optimized artifact published on Esmeralda.
+The JavaScript suite covers exact amounts, fixed terms, chain parsing, coin liveness/selection, stale funding, account changes, wallet request recovery, memo restoration, browser WASM and duplicate-return guards. It also prevents an already-recorded reviewer or completed payout from opening another paid approval request. The approval button stays disabled after a successful vote in the current session; fresh on-chain checks block repeats after reload. Mock provider tests alone do not prove an installed-extension round trip. Native Tari-engine tests exercise real encrypted deposits, caps, required votes, payout, refunds and receipt encryption. The same three escrow lifecycle tests passed against the exact optimized artifact published on Esmeralda.
 
 With Rust 1.97.1 and `wasm32-unknown-unknown` installed:
 
@@ -60,7 +62,7 @@ cargo +1.97.1 build -p accord-sapient-client --lib --release --target wasm32-unk
 
 Regenerate the browser helper with `wasm-bindgen-cli` **0.2.128**, using `--target web --out-dir app/lib/stock-crypto --out-name accord_sapient_client` on the resulting client WASM. The deployed template binary and SHA-256 are preserved under [artifacts/esmeralda](artifacts/esmeralda/README.md). Set `OOTLEACCORD_TEMPLATE_WASM` to that artifact’s absolute path to exercise it directly in the engine tests. Compiler version, optimization and source formatting can change binary hashes.
 
-The earlier quorum/private-output templates and native proof client remain in the Rust workspace. See [verification ledger](docs/verification.md) for the distinction between source tests, engine tests and live network evidence. Live v5 payout/refund and the required installed-Sapient community approval remain outstanding.
+The earlier quorum/private-output templates and native proof client remain in the Rust workspace. See [verification ledger](docs/verification.md) for the distinction between source tests, engine tests and live network evidence. The v5 community deposit, required approval and private payout now have committed receipts. Expiry refunds remain engine-tested rather than executed live.
 
 ## GitHub Pages
 
