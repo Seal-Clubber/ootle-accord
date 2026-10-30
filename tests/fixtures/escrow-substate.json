@@ -1,0 +1,94 @@
+{
+  "version": 4,
+  "state": {
+    "up": {
+      "substate": {
+        "Component": {
+          "header": {
+            "template_address": "5d035ef964e51458ccfd8e654781715cdd6725a1b72ac1ac0b546682169c2d45",
+            "owner_rule": "None",
+            "access_rules": {
+              "method_access": {},
+              "default": "AllowAll"
+            },
+            "entity_id": "48"
+          },
+          "body": {
+            "state": [
+              "11f52c1579d7c7c2a882cbe6012e56864783fd480154fb9db518e537a2096555",
+              "delivery",
+              {
+                "@cbor": "bytes",
+                "hex": "5ad6cb9d9ae794119bfc14cd467032e9e671ea9d9c5fccfea86250b046de8d6c"
+              },
+              {
+                "@cbor": "bytes",
+                "hex": "1e82be4cc00cc4834317aa6825155bff4efbfeb30583fbf16a7d953c6b103902"
+              },
+              [
+                {
+                  "@cbor": "bytes",
+                  "hex": "ba60416b012dfb56faf681121040345bf289aea500545f438714d2b1829c061d"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "863454acb813f86c64fcb0342030e65d37a99d3258bccf910be587e164e42a18"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "626f4bafd6703c73160f05b4aeadf36bad31de0844eb406dbda2b15ba1f3d902"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "841088f02777bbc6ce973adaa7e763d714f53365937c6b8500a02582e61a4b02"
+                },
+                {
+                  "@cbor": "bytes",
+                  "hex": "420201912be9c443aa4f162620a09495d4b4a43566b66ce6e7ea70bd5e9aa853"
+                }
+              ],
+              60,
+              2,
+              10000000,
+              14000,
+              10000000,
+              "26a59392d78c0d51fc3866e5c04920ebd2703182df1b8747d02ff869c8869ecd",
+              [
+                true,
+                true,
+                false,
+                false,
+                false
+              ],
+              {
+                "@cbor": "tag",
+                "tag": 132,
+                "value": {
+                  "@cbor": "bytes",
+                  "hex": "48eb022a13a5aec5a22e59d108cc347f3a0f2c71737815dd54a2be558073281c"
+                }
+              },
+              [
+                {
+                  "@cbor": "bytes",
+                  "hex": "9e71e3f30bfb5ec1d45501afed6c9af83e7fd1391ba05e79c0bac4f4440f3848"
+                }
+              ],
+              [
+                {
+                  "@cbor": "bytes",
+                  "hex": "fe13d18415cb3b2851e81b30a786e83c4e44c70ef9bcf04a5c158308d5e4050a"
+                }
+              ],
+              [
+                false
+              ],
+              false
+            ]
+          }
+        }
+      }
+    }
+  },
+  "verified": true
+}

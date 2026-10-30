@@ -1,4 +1,4 @@
-> **Legacy v1 reference.** New agreements use [Sapient wallet-authorized review](wallet-review.md). The secret-based HTLC behavior below applies only to old handoffs and recovery files. The new quorum approval component is deployed on Esmeralda and holds no funds. See [testnet receipts](testnet-deployment.md).
+> **Historical HTLC reference.** The current funded v4 template uses private native outputs, a public exact aggregate and mandatory quorum review. See [current escrow design, limits and committed receipts](private-escrow-testnet.md). The older secret-based behavior below applies only to previous handoffs and recovery files.
 
 # OotleAccord protocol
 

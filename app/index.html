@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src https://ootle-indexer-a.tari.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="OotleAccord — community milestone agreements and Sapient review on Tari Esmeralda.">
@@ -22,16 +22,21 @@
   <div class="app-shell">
     <nav aria-label="Workspace"><button class="nav-item active" data-view="explore" aria-current="page">Accords</button><button class="nav-item" data-view="create">Create</button><button class="nav-item" data-view="review">Review</button></nav>
     <main id="main" tabindex="-1">
-      <p class="app-status">Testnet review only. Private funding and escrow payments are not available yet.</p>
+      <p class="app-status">Esmeralda testnet · Private-output escrow · Public funding total</p>
       <section class="view" id="view-explore" aria-labelledby="explore-title">
         <div class="section-heading"><div><h1 id="explore-title">Accords</h1><p>Milestone agreements on Esmeralda.</p></div><button class="button button-primary" data-view="create">New accord</button></div>
         <article class="surface accord-card" aria-labelledby="deployed-title">
-          <div class="section-heading"><span class="badge">DEPLOYED</span><span class="muted">Review demo</span></div>
+          <div class="section-heading"><span class="badge" id="funding-label">PRIVATE ESCROW</span><span class="muted">10 tTARI test</span></div>
           <h2 id="deployed-title"></h2>
+          <div class="accord-stats"><div><span>Locked in escrow</span><strong id="funded-amount"></strong></div><div><span>Remaining</span><strong id="remaining-amount"></strong></div></div>
+          <progress id="funding-progress" max="100" value="100" aria-label="Escrow funding progress"></progress>
+          <p id="funding-note" class="field-help"></p>
+          <details><summary>Contribute</summary><label for="contribution-amount">Contribution (tTARI)</label><div class="inline-actions"><input id="contribution-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal"><button type="button" id="funding-max" class="button button-outline">Max</button></div><button type="button" class="button button-outline" disabled>Private funding unavailable in Sapient</button><p class="field-help">This funded test used the native private client. No further donations can be accepted after the goal is reached.</p></details>
           <div class="accord-stats"><div><span>Reviewers</span><strong id="explore-reviewer-count"></strong></div><div><span>Approval threshold</span><strong id="explore-threshold"></strong></div><div><span>Recorded votes</span><strong id="explore-approvals"></strong></div></div>
           <p id="explore-checkpoint" class="field-help"></p>
-          <div class="card-actions"><button type="button" id="explore-open-accord" class="button button-primary">Open accord</button><a href="./docs/testnet-deployment.md" target="_blank" rel="noopener">Transaction receipts ↗</a></div>
-          <details><summary>Contract details</summary><code id="explore-component"></code><p class="field-help">This contract records review votes and holds no campaign funds. Four reviewers are deployer-operated test wallets.</p></details>
+          <div class="card-actions"><button type="button" id="explore-open-accord" class="button button-primary">Review work</button><button type="button" id="refresh-funding" class="button button-outline">Refresh balance</button><a href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div>
+          <p class="field-help">Refresh contacts the Tari indexer with this public contract ID. No wallet data is sent.</p>
+          <details><summary>Privacy &amp; contract details</summary><code id="explore-component"></code><p class="field-help">Transfer amounts are encrypted and signing keys are one-time. Changes in the public total reveal contribution sizes. Transaction links and timing remain visible. Four reviewers are deployer-operated test wallets.</p></details>
         </article>
       </section>
       <section class="view" id="view-create" hidden aria-labelledby="create-title">
@@ -61,11 +66,11 @@
               <p class="field-help">Files are hashed on this device. Only the fingerprint is submitted.</p>
             </details>
             <label for="review-fee">Maximum fee (tTARI)</label><input id="review-fee" inputmode="decimal" value="1" required>
-            <p class="field-help">Approvals and reviewer identities are public. Private transaction fees are required. This approval transfers no campaign funds.</p>
+            <p class="field-help">Reviewer identities and votes are public. Your approval authorizes the creator to release the 10 tTARI to the fixed test-wallet destination; this vote does not itself send the payout. Private transaction fees are required.</p>
             <button type="submit" id="approve-review" class="button button-primary" disabled>Approve in Sapient</button>
           </form>
           <details><summary>My reviewer address</summary><p>Share your Sapient receiving address with the organizer.</p><button type="button" id="reviewer-connect" class="button button-outline">Get address from Sapient</button><div id="reviewer-identity" hidden><label for="reviewer-wallet">Public wallet address</label><textarea id="reviewer-wallet" readonly rows="3" spellcheck="false"></textarea><button type="button" id="copy-reviewer-wallet" class="text-button">Copy address</button></div></details>
-          <details><summary>Deployment details</summary><p class="field-help">Only verified deployments can be approved.</p><code id="review-contract"></code><code id="review-agreement-id"></code><a href="./docs/testnet-deployment.md" target="_blank" rel="noopener">Receipts &amp; deployment record ↗</a></details>
+          <details><summary>Deployment details</summary><p class="field-help">Only verified deployments can be approved.</p><code id="review-contract"></code><code id="review-agreement-id"></code><a href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts &amp; deployment record ↗</a></details>
         </div>
       </section>
     </main>

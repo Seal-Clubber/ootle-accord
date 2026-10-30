@@ -1,6 +1,6 @@
 // Provider contract: chironbuilds/tari-wallet/src/lib/messages.ts and
 // docs/integration/provider-api.md. No keys, view grants, balances, or telemetry.
-import { QUORUM_AGREEMENT_SCHEMA, validateAgreement, agreementId } from './accord.mjs';
+import { QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, validateAgreement, agreementId } from './accord.mjs';
 import { cborReviewerIndex, cborSubmissionHash } from './review-args.mjs';
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
 import { REVIEW_DEPLOYMENTS } from './review-deployments.mjs';
@@ -425,7 +425,7 @@ export function createSapientAdapter({
     },
     async approveMilestone({ agreement, stageId, submissionHash, maxFee } = {}, options) {
       const terms = validateAgreement(agreement);
-      if (terms.schema !== QUORUM_AGREEMENT_SCHEMA) throw new SapientError('Import a v3 percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
+      if (![QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA].includes(terms.schema)) throw new SapientError('Open a percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
       const stage = terms.milestones.find(item => item.id === stageId);
       if (!stage) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');
       const hashArg = cborSubmissionHash(submissionHash);
@@ -440,7 +440,7 @@ export function createSapientAdapter({
     },
     async submitWork({ agreement, stageId, submissionHash, maxFee } = {}, options) {
       const terms = validateAgreement(agreement);
-      if (terms.schema !== QUORUM_AGREEMENT_SCHEMA) throw new SapientError('Import a v3 percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
+      if (![QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA].includes(terms.schema)) throw new SapientError('Open a percentage-quorum agreement.', 'UNSUPPORTED_REVIEW_PROTOCOL');
       const hashArg = cborSubmissionHash(submissionHash);
       validateFee(maxFee);
       if (!terms.milestones.some(stage => stage.id === stageId)) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');

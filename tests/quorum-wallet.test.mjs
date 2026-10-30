@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { TESTNET_DEMO } from '../app/lib/testnet-demo.mjs';
+import { TESTNET_ESCROW } from '../app/lib/testnet-escrow.mjs';
 import { REVIEW_DEPLOYMENTS } from '../app/lib/review-deployments.mjs';
 import { createSapientAdapter } from '../app/lib/sapient.mjs';
 import { agreementId, sha256Hex } from '../app/lib/accord.mjs';
@@ -21,6 +22,17 @@ function mock(address, privateFees=true) {
   return {calls,adapter:createSapientAdapter({provider,storage:null,pollIntervalMs:0,requestTimeoutMs:200})};
 }
 const params={agreement:TESTNET_DEMO.agreement,stageId:'quorum-demo',submissionHash:TESTNET_DEMO.submissionHash,maxFee:'1000000'};
+
+test('v4 funded escrow approval targets the verified escrow and requires private fees',async()=>{
+  const m=mock(TESTNET_ESCROW.agreement.milestones[0].reviewers[2].walletAddress);await m.adapter.connect();
+  await m.adapter.approveMilestone({agreement:TESTNET_ESCROW.agreement,stageId:'delivery',submissionHash:TESTNET_ESCROW.submissionHash,maxFee:'1000000'});
+  const p=m.calls.find(c=>c.method==='tari_createTransactionRequest').params;
+  assert.equal(p.instructions[0].CallMethod.call.Address,TESTNET_ESCROW.component);assert.deepEqual(p.instructions[0].CallMethod.args,[{Literal:'02'},cborSubmissionHash(TESTNET_ESCROW.submissionHash)]);
+  assert.equal(p.feeType,'private');assert.equal(p.enforceFeeType,true);
+  const changed=structuredClone(TESTNET_ESCROW.agreement);changed.milestones[0].requiredReviewerPublicKey=changed.milestones[0].reviewers[0].publicKey;
+  const other=mock(TESTNET_ESCROW.agreement.milestones[0].reviewers[2].walletAddress);
+  await assert.rejects(other.adapter.approveMilestone({agreement:changed,stageId:'delivery',submissionHash:TESTNET_ESCROW.submissionHash,maxFee:'1000000'}),{code:'REVIEW_NOT_DEPLOYED'});assert.deepEqual(other.calls,[]);
+});
 
 test('bundled public demo identity and actual work hash match the verified allowlist',async()=>{
   assert.equal(await agreementId(TESTNET_DEMO.agreement),TESTNET_DEMO.agreementId);

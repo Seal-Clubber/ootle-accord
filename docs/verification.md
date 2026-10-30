@@ -1,3 +1,13 @@
+# Private escrow update — 30 October 2026
+
+A capped 10 tTARI escrow is funded on Esmeralda with native private outputs, one-time donor signing keys and private fee inputs. Component version 4 records two votes; the mandatory community reviewer is false and paid is false. The full remaining counter is 0. Publication, creation, public shielding, private funding, work and both test votes have committed receipts. See [current evidence and fee ledger](private-escrow-testnet.md).
+
+64 JavaScript tests passed, with one Windows symlink-permission skip and no failures. Six Tari-engine escrow tests and a separate real encrypted-client funding/payout test passed. The earlier five quorum-engine tests remain. The browser counter accepts only pinned, verified indexer responses with matching immutable terms; refresh is explicit and sends no wallet data. Max uses exact raw units, closed campaigns disable it, and the chain enforces the cap even when quotes race.
+
+No live payout or refund has been performed. Installed Sapient approval remains for the community reviewer to do; wallet-provider tests are mocks. General Sapient private escrow funding remains disabled. Create exports public terms only. Independent security review remains outstanding. Exact public totals expose amounts by subtraction, and this test's bootstrap/graph is public.
+
+The entries below record earlier versions and historical evidence.
+
 ## Simplified app interface
 
 The current interface has Accords, Create and Review tabs. The marketing layout, local sandbox and legacy recovery screen were removed. Earlier browser evidence for those removed screens below is historical. The deployed agreement remains reachable directly from Accords.

@@ -4,7 +4,7 @@
 
 OotleAccord is an original community-funding prototype for Tari Ootle. Communities prepare a public agreement, split work into reviewed milestones, and keep recovery material private. It is inspired by Threshold's funding idea; this repository contains a fresh implementation for the October 2026 Tari build contest.
 
-**Live private funding is disabled.** The inspected Sapient HTLC operation funds from revealed balances and does not forward the SDK's private-source options. OotleAccord blocks new pledges instead of presenting that route as private. No funded campaign, successful payout, or completed live refund is claimed here. This is experimental testnet software.
+**A real 10 tTARI private-output escrow is funded on Esmeralda.** Its exact public total shows 0 remaining; changes in that total reveal contribution sizes. Two test reviewers have approved. The community reviewer is mandatory and has not approved, so no payout has happened. General private funding through Sapient remains disabled; this test used the native private client. See [private escrow receipts and limits](docs/private-escrow-testnet.md).
 
 ## Try it locally
 
@@ -20,23 +20,23 @@ Open [http://127.0.0.1:4173/](http://127.0.0.1:4173/). The local server binds on
 
 The interface has three tabs:
 
-- **Accords:** the deployed Esmeralda review agreement, its threshold and recorded checkpoint.
+- **Accords:** the funded Esmeralda escrow, remaining capacity, Max control, approval threshold and an explicit balance refresh.
 - **Create:** milestone terms, reviewer wallets and approval percentages; saves a public agreement file.
 - **Review:** the work and acceptance terms, with Sapient submission and approval.
 
-The landing-page sections, simulated funding sandbox and legacy recovery screen have been removed. Cryptographic recovery helpers remain in the library for compatibility, with no recovery UI. The app requests no balances or private view access. It performs no background indexer requests; displayed votes are explicitly labeled as a recorded checkpoint.
+The landing-page sections, simulated funding sandbox and legacy recovery screen have been removed. Cryptographic recovery helpers remain in the library for compatibility, with no recovery UI. The app requests no balances or private view access. It performs no background indexer requests. Refresh balance explicitly contacts the pinned Tari indexer with the public contract ID, checks immutable terms and updates the counter/votes. Saved checkpoints are labeled. The browser relies on indexer verification rather than independently checking consensus proofs.
 
 Sapient's existing origin connection is restored after refresh and checked again when returning to the app. This uses passive account, network and capability reads; it never opens a permission or signing prompt. No account address or connection token is stored by the app. A locked wallet, revoked site permission or wrong network stays disconnected until Sapient reports a valid existing connection or the user explicitly connects again.
 
 ## Funding model and limits
 
-New v3 agreements fix up to ten Sapient reviewer keys and a percentage per milestone. The creator submits a work fingerprint, and reviewers sign approvals for that same work. Votes required round up against all designated reviewers. The quorum template and a 3-of-5 example are deployed on Esmeralda, with two committed test approvals awaiting the community reviewer. This component holds no funds; private escrow remains unfinished. See [wallet review](docs/wallet-review.md) and [deployment receipts](docs/testnet-deployment.md).
+The v4 escrow template fixes the native-TARI target, deadline, creator, one-time payout key, reviewer list, percentage and required reviewer. Funding spends private inputs into escrow-controlled script-only outputs. An opening proof binds each real output value to the public counter increase; native range and balance proofs validate the actual movement. Funding above the remaining capacity is rejected atomically. Each escrow supports up to 64 pledges. The Max control uses exact raw-unit capacity; a concurrent donation can make a quote stale and cause rejection.
 
-Legacy v1 HTLC handoffs and encrypted recovery files remain readable. Their hashlocks are unchanged and cannot be upgraded by this website. The app no longer offers legacy claim or recovery screens. There is no campaign-wide goal, stage-order or work-quality enforcement. Quorum applies to review authorization only.
+The creator submits a work fingerprint. Payout requires the rounded-up quorum **and** the mandatory reviewer, then a creator signature and a transfer to the fixed private destination. After the deadline, eligible unpaid pledges refund only to their precommitted one-time refund keys. Recovery data is essential and stays local. Six escrow engine tests and an encrypted client flow cover these paths. The live 10 tTARI example remains locked; no live payout/refund is claimed.
 
-This version supports native TARI on Esmeralda and six decimal places. Refund deadlines are chain epochs, not calendar timestamps. A wallet seed alone is insufficient for this recovery format: retain the encrypted backup, its password, the original funding wallet and fee funds.
+Sapient signs work submissions and public review votes with private fees enforced. Its current provider does not expose the custom private escrow funding flow, so browser donations remain disabled without a revealed fallback. Create saves public v3 review terms and does not deploy a contract. The native client is an offline fixed 10 tTARI test utility. Older agreement helpers and the authorization-only demonstration remain in source for compatibility; see [earlier review deployment](docs/testnet-deployment.md).
 
-Private amounts do not make participants anonymous. Fees, transaction graphs, timings, public keys and public reviewer wallet keys can expose links. Legacy HTLC claim preflight discloses its secret to the wallet's indexer before broadcast. No public live funding total is calculated from hidden contributions. Read the [privacy model](docs/privacy.md), [protocol](docs/protocol.md) and [Sapient integration status](docs/sapient.md).
+The exact aggregate reveals donation sizes by subtraction. Stealth output amounts remain encrypted and donor signing keys are one-time, but transaction graph, timing, fees, public creator/reviewer keys and the documented public shielding bootstrap remain visible. This is not donor anonymity. See the [current privacy model and chain evidence](docs/private-escrow-testnet.md). Legacy [HTLC privacy](docs/privacy.md), [protocol](docs/protocol.md) and [Sapient notes](docs/sapient.md) are historical references.
 
 ## Check and build
 
@@ -48,7 +48,7 @@ node scripts/build.mjs
 
 `check.mjs` checks JavaScript syntax and page references. Tests cover amount precision, agreement validation, secrets, encrypted recovery, wallet request recovery and preview-server boundaries. Wallet tests use a mock provider; they do not establish validator acceptance, an installed-extension round trip or live privacy.
 
-The quorum update passed 48 JavaScript tests with one Windows symlink-permission skip and five real Tari-engine tests. Template publication, component creation, creator submission and two reviewer votes committed on Esmeralda. Installed Sapient approval and funded private escrow remain outstanding. See the [verification ledger](docs/verification.md).
+The private escrow update adds six real Tari-engine escrow tests and an additional real encrypted funding/payout test, alongside the existing five quorum-engine tests and JavaScript suite. Publication, creation, shielding, private funding, work submission and two test votes committed on Esmeralda. The required installed-Sapient community approval is still outstanding. See the [verification ledger](docs/verification.md).
 
 `build.mjs` creates a static `dist/` directory with local app assets and documentation. It excludes the preview server, dotfiles and JSON exports. The build does not publish or deploy anything. When hosting, apply the restrictive response policy in [app/server.mjs](app/server.mjs) and verify that the installed wallet can inject its provider under that policy. Assets and fonts are local; the application has no analytics or remote font service.
 
@@ -56,7 +56,7 @@ The quorum update passed 48 JavaScript tests with one Windows symlink-permission
 
 The `Publish GitHub Pages` workflow tests the code, builds `dist/`, and deploys it on every push to `main`. It can also be started manually from Actions. Repository Settings → Pages uses **GitHub Actions** as the publishing source.
 
-All application assets use relative paths so the project works at `/ootle-accord/`. A page-level content security policy and no-referrer policy travel with the static HTML. GitHub Pages does not reproduce the preview server's custom HTTP headers. Recovery files are decrypted locally; GitHub serves the application files and can observe ordinary visitor connection metadata. Live private funding remains disabled.
+All application assets use relative paths so the project works at `/ootle-accord/`. A page-level content security policy and no-referrer policy travel with the static HTML. GitHub Pages does not reproduce the preview server's custom HTTP headers. Recovery files are decrypted locally; GitHub serves the application files and can observe ordinary visitor connection metadata. General private donations through Sapient remain disabled; the native-client-funded escrow is real.
 
 ## Build the approval template
 
@@ -64,7 +64,7 @@ With Rust 1.97.1 and the wasm32-unknown-unknown target installed, run:
 
     cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-review-template --locked
 
-Run `cargo +1.97.1 test -p accord-review-template --test quorum_engine --locked` on Linux to exercise the engine tests. The test helper also compiles the WASM. The helper requires a native Cranelift-supported target and build tools. `accord-deploy-args` encodes public deployment arguments with Tari’s CBOR library. This builds authorization, not a complete private escrow.
+Run `cargo +1.97.1 test -p accord-review-template --test quorum_engine --locked` on Linux to exercise the engine tests. The test helper also compiles the WASM. The helper requires a native Cranelift-supported target and build tools. `accord-deploy-args` encodes public deployment arguments with Tari’s CBOR library. For private escrow, build `-p accord-escrow-template` and run `cargo +1.97.1 test -p accord-escrow-template --test private_escrow --locked` plus `cargo +1.97.1 test -p accord-private-client --test encrypted_flow --locked`. The native client never submits transactions itself; recovery journals stay under ignored `.local/`.
 
 ## Repository map
 

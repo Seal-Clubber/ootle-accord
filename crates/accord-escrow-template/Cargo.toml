@@ -1,0 +1,19 @@
+[package]
+name = "accord-escrow-template"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+tari_template_lib = "=0.35.0"
+tari_template_lib_types = { version = "=0.35.0", features = ["borsh"] }
+borsh = "1"
+
+[dev-dependencies]
+tari_template_test_tooling = "=0.47.0"
+tari_crypto = "=0.24.0"
+tari_ootle_common_types = "=0.47.0"
+rand = "0.10"

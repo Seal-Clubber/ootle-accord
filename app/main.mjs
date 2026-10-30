@@ -1,9 +1,10 @@
 import {
   QUORUM_AGREEMENT_SCHEMA, requiredApprovals, sha256Hex, NATIVE_TARI_RESOURCE, validateAgreement, agreementId,
-  toRawAmount,
+  toRawAmount, fromRawAmount,
 } from './lib/accord.mjs';
 import { createSapientAdapter } from './lib/sapient.mjs';
-import { TESTNET_DEMO } from './lib/testnet-demo.mjs';
+import { TESTNET_ESCROW as TESTNET_DEMO } from './lib/testnet-escrow.mjs';
+import { fundingState, refreshEscrow } from './lib/escrow-funding.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -78,6 +79,36 @@ $('#explore-threshold').textContent = `${deployedStage.approvalPercent}% · ${de
 $('#explore-approvals').textContent = `${TESTNET_DEMO.recordedApprovals} of ${deployedRequired} required`;
 $('#explore-checkpoint').textContent = `Deployment verified. Approvals shown are the recorded checkpoint at chain epoch ${TESTNET_DEMO.recordedEpoch}, not a live vote count.`;
 $('#explore-component').textContent = TESTNET_DEMO.component;
+let escrowState = fundingState({ targetUnits: deployedStage.targetUnits, fundedUnits: TESTNET_DEMO.recordedFundingUnits, epoch: TESTNET_DEMO.recordedEpoch, deadline: deployedStage.refundEpoch });
+let chainSnapshot = null;
+function approvalUnavailable() { return chainSnapshot && (chainSnapshot.paid || chainSnapshot.expired || chainSnapshot.approved || chainSnapshot.submissionHash !== submissionHash); }
+function renderFunding(state, live = false) {
+  if (live && chainSnapshot && (state.version < chainSnapshot.version || BigInt(state.epoch) < BigInt(chainSnapshot.epoch))) throw new Error('Indexer returned an older checkpoint. Try again later.');
+  escrowState = state;
+  $('#funded-amount').textContent = `${fromRawAmount(state.fundedUnits)} / ${fromRawAmount(state.targetUnits)} tTARI`;
+  $('#remaining-amount').textContent = `${fromRawAmount(state.remainingUnits)} tTARI`;
+  $('#funding-progress').value = Number(BigInt(state.fundedUnits) * 10000n / BigInt(state.targetUnits)) / 100;
+  const closed = state.remainingUnits === '0';
+  $('#funding-max').disabled = closed;
+  $('#contribution-amount').disabled = closed;
+  $('#contribution-amount').max = fromRawAmount(state.remainingUnits);
+  $('#contribution-amount').value = closed ? '0' : '';
+  $('#funding-label').textContent = state.paid ? 'PAID' : state.expired ? 'FUNDING CLOSED' : state.fullyFunded ? 'FULLY FUNDED' : 'FUNDING OPEN';
+  $('#funding-note').textContent = state.paid ? 'Payout completed.' : state.expired ? 'The deadline has passed. Unpaid pledges are eligible for private refunds.' : state.fullyFunded ? 'Goal reached. Further funding is blocked by the escrow.' : 'Max fills the remaining capacity. Sapient private escrow funding is not available in this build.';
+  if (live) {
+    chainSnapshot = state;
+    $('#explore-approvals').textContent = `${state.approvals} of ${deployedRequired} required`;
+    $('#explore-checkpoint').textContent = `Refreshed from the Esmeralda indexer · epoch ${state.epoch} · ${new Date(state.checkedAt).toLocaleTimeString()}.`;
+    $('#review-output').textContent = state.paid ? 'Payout completed.' : `${state.approvals} of ${deployedRequired} approvals. ${state.requiredReviewerApproved ? 'Your required vote is recorded.' : 'Waiting for the community reviewer’s required approval.'}`;
+    $('#approve-review').disabled = !reviewAgreement || Boolean(approvalUnavailable());
+  }
+}
+renderFunding(escrowState);
+$('#funding-max').addEventListener('click', () => { $('#contribution-amount').value = fromRawAmount(escrowState.remainingUnits); });
+$('#refresh-funding').addEventListener('click', event => action(event.currentTarget, async () => {
+  renderFunding(await refreshEscrow(TESTNET_DEMO), true);
+  notify('Balance and approvals refreshed from Esmeralda.');
+}));
 
 // Agreements use reviewer wallet signatures.
 $('#resource-address').value = NATIVE_TARI_RESOURCE;
@@ -175,7 +206,7 @@ function renderReviewTerms() {
   }
   const reviewers = document.createElement('details');
   reviewers.append(textElement('summary', `${stage.reviewers.length} reviewers`), list);
-  $('#review-terms').replaceChildren(textElement('p', `${requiredApprovals(stage.reviewers.length, stage.approvalPercent)} of ${stage.reviewers.length} approvals required · ${stage.approvalPercent}%`), textElement('p', stage.title), textElement('p', stage.description, 'field-help'), textElement('p', `Review before chain epoch ${stage.refundEpoch}.`, 'field-help'), reviewers);
+  $('#review-terms').replaceChildren(textElement('p', `${requiredApprovals(stage.reviewers.length, stage.approvalPercent)} of ${stage.reviewers.length} approvals required · ${stage.approvalPercent}%`), textElement('p', 'The community reviewer’s vote is required before the creator can release the 10 tTARI.'), textElement('p', stage.title), textElement('p', stage.description, 'field-help'), textElement('p', `Review before chain epoch ${stage.refundEpoch}.`, 'field-help'), reviewers);
 }
 $('#review-stage').addEventListener('change', renderReviewTerms);
 async function loadTestnetDemo() {
@@ -195,8 +226,9 @@ async function loadTestnetDemo() {
   $('#load-testnet-demo').hidden = true;
   $('#review-contract').textContent = TESTNET_DEMO.component;
   $('#review-agreement-id').textContent = TESTNET_DEMO.agreementId;
-  $('#review-output').textContent = `${TESTNET_DEMO.recordedApprovals} of ${deployedRequired} required approvals recorded at epoch ${TESTNET_DEMO.recordedEpoch}. This is a saved checkpoint, not live status.`;
-  $('#approve-review').disabled = false;
+  $('#review-output').textContent = `10 tTARI locked · ${TESTNET_DEMO.recordedApprovals} of ${deployedRequired} approvals · waiting for the community reviewer. Saved checkpoint at epoch ${TESTNET_DEMO.recordedEpoch}; refresh in Accords for current status.`;
+  $('#approve-review').disabled = Boolean(approvalUnavailable());
+  if (chainSnapshot) renderFunding(chainSnapshot, true);
   renderReviewTerms();
 }
 $('#load-testnet-demo').addEventListener('click', event => action(event.currentTarget, loadTestnetDemo));
@@ -228,7 +260,7 @@ $('#review-work').addEventListener('change', event => action(null, async () => {
   if (!file || file.size > 10 * 1024 * 1024) throw new Error('Choose a work file up to 10 MB.');
   submissionHash = await sha256Hex(await file.arrayBuffer());
   $('#work-fingerprint').textContent = 'Work fingerprint: ' + submissionHash + '. The file stays on this device.';
-  $('#approve-review').disabled = !reviewAgreement;
+  $('#approve-review').disabled = !reviewAgreement || Boolean(approvalUnavailable());
 }));
 $('#submit-work').addEventListener('click', event => action(event.currentTarget, async () => {
   if (!reviewAgreement || !submissionHash) throw new Error('Open an accord and choose its work file first.');
