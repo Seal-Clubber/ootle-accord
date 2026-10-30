@@ -1,3 +1,5 @@
+> **Current funded escrow:** v4 uses the same indexed Sapient review calls and additionally enforces its cap, custody, required reviewer, fixed payout and expired refunds. The 10 tTARI test is funded and awaits the community reviewer. See [current design and receipts](private-escrow-testnet.md). The v3 authorization-only component described below is the earlier deployment; Create still exports v3 public review terms.
+
 # Wallet-authorized percentage review
 
 New exports use `ootleaccord.agreement.v3`. Each milestone fixes one to ten distinct Sapient owner keys, an integer approval percentage from 1 to 100, the creator and a deadline. Checksummed base Esmeralda addresses supply public keys. No release secret is generated.

@@ -20,13 +20,13 @@ A community sponsor offers 100,000 XTM across three places (50,000 / 30,000 / 20
 ## Evidence to finish before submitting
 
 - Source repository created: [Seal-Clubber/ootle-accord](https://github.com/Seal-Clubber/ootle-accord).
-- Verify the wallet/SDK versions and network, and record receipts for any claimed native HTLC funding, claim and refund flows. The new review template is compiled but has no deployment or engine qualification.
+- Deployed and funded: native private-output escrow on Esmeralda, goal 10 tTARI, two test approvals, required community vote outstanding. Publication, creation, shielding, funding and review receipts are in the [escrow ledger](private-escrow-testnet.md). No live payout or refund is claimed.
 - Document the privacy boundary: what the public ledger, organizer, recipient, wallet and application host can each observe.
 - Record validation commands and results. Label simulated, in-process and live-network evidence separately.
 - Add a demonstration or screenshots showing Sapient approval and the resulting network receipt.
 - Supply the prize-payment address and a public Bluesky or Reddit announcement URL.
 
-Ootle mainnet is scheduled for 11 November 2026; the contest prototype targets Esmeralda testnet. Testnet deployment is an evidence goal here, not a claim that it has happened. See [official launch announcement](https://tari.com/updates/2026-09-01-update-143) and [official wallet setup](https://ootle.tari.com/guides/setup-a-wallet/).
+Ootle mainnet is scheduled for 11 November 2026; the contest prototype targets Esmeralda testnet. The private escrow is deployed and funded on Esmeralda; this does not establish a mainnet lifecycle. See [official launch announcement](https://tari.com/updates/2026-09-01-update-143) and [official wallet setup](https://ootle.tari.com/guides/setup-a-wallet/).
 
 ## Forum submission draft — complete placeholders before posting
 
@@ -34,23 +34,21 @@ Ootle mainnet is scheduled for 11 November 2026; the contest prototype targets E
 
 Source (MIT): [Seal-Clubber/ootle-accord](https://github.com/Seal-Clubber/ootle-accord)
 
-Demo: [GitHub Pages](https://seal-clubber.github.io/ootle-accord/#review). Choose Load testnet demo.
+Demo: [GitHub Pages](https://seal-clubber.github.io/ootle-accord/#explore). Open the 10 tTARI accord and choose Review work.
 
-OotleAccord is a new escrow-protocol library and browser prototype for funding community work under agreed milestone terms. New v3 agreements fix a list of distinct Sapient reviewer keys and an approval percentage per milestone. The original approval template checks a real reviewer transaction-signer proof and a chain deadline. It holds no funds; a 60% quorum demonstration with two committed approvals is deployed on Esmeralda. Legacy secret-based HTLC recovery remains supported separately. Review votes are enforced on-chain for the same submitted work hash; funding targets, work quality and stage order remain human policies.
+OotleAccord is a new native-output escrow template and small browser app for community milestone funding. Its v4 agreement fixes the funding cap, deadline, creator, one-time payout key, reviewer list, approval percentage and one required reviewer. A real 10 tTARI example is fully funded on Esmeralda. Two test reviewers have approved; the required community reviewer has not, so payout remains locked. Four test reviewers share an operator and are not independent.
 
-New funding is currently disabled because stock Sapient's dApp HTLC route reveals the funding amount. The SDK supports stealth-source funding, but the inspected wallet provider does not expose it. The prototype offers wallet-review agreements, Sapient reviewer identity, a guarded approval adapter, and encrypted legacy recovery tools. Approval and private escrow deployment are unfinished. These are implementation boundaries, not evidence of a live-network lifecycle.
+The escrow's private native inputs, range/balance proofs and additional opening proof tie real locked output value to a public funding counter. The contract rejects contributions above remaining capacity atomically. The app displays remaining tTARI and a Max control, disabled when the goal is full. Payout requires the percentage quorum, the mandatory reviewer and a creator signature, then goes only to the fixed private destination. After the deadline, eligible unpaid pledges can be refunded only to their precommitted one-time keys. Donors must retain recovery data.
 
-It is a new implementation inspired by the community-funding problem explored by Threshold. Original October work includes the canonical agreement library, native-TARI amount validation, reviewer wallet-address decoding, the new authorization template, authenticated encrypted recovery format, resumable Sapient request adapter, and browser application. No Threshold source was copied.
+**Privacy tradeoff:** output amounts and masks are encrypted, and the donation transaction uses one-time spending/signing keys without the donor's base account/key. Exact public counter changes still reveal donation sizes. Transaction graph, timing, fees, public creator/reviewer identities and the documented public test-wallet shielding step remain visible. This is not evidence of donor anonymity. No donor roster, analytics, remote fonts or wallet balance/view grant is used. Balance refresh is explicit and contacts the pinned public Tari indexer; the browser relies on its verification.
 
-**Privacy demonstrated locally:** recovery records are encrypted with PBKDF2-SHA256 and AES-256-GCM using fresh salts and IVs; creator handoffs omit the refund mask and amount field; public agreement validation rejects unsupported fields; no balance/view grant, analytics, or remote fonts are requested. These local properties do not establish private on-chain funding.
+**Sapient integration:** reviewer identity and fixed allowlisted work/approval calls, Esmeralda/capability checks, resumable requests and enforced private fees. The community reviewer must complete the installed-extension approval. General Sapient private escrow donations remain disabled because the inspected stock provider does not expose this custom proof flow; the real test was funded with the native private client. Create saves public v3 review terms and does not deploy new escrows.
 
-**Sapient integration implemented:** explicit connection, Esmeralda and capability checks, resumable native claim/refund requests with enforced private fees, and a funding guard. Provider behavior is verified with mocks and inspected upstream source. The installed-extension round trip remains unverified; template publication and local-wallet review transactions have committed on Esmeralda.
+**Evidence:** [committed funding/review receipts, terms and limits](private-escrow-testnet.md), [verification ledger](verification.md), 64 passed JavaScript tests with one Windows permission skip, six native Tari-engine escrow tests and an additional encrypted funding/payout engine test. The earlier quorum template has five engine tests. No live payout, live refund, installed-extension round trip or independent audit is claimed.
 
-**Evidence:** see [the verification ledger](verification.md) for local commands and browser checks. The [Esmeralda deployment ledger](testnet-deployment.md) links committed publication, constructor, work submission and two reviewer approvals. The contract holds no funds. Successful campaign funding, payment, refund and independent security review remain unverified.
+It is an original implementation inspired by the community-funding problem explored by Threshold. October work includes canonical agreements, exact native-TARI amounts, wallet-address decoding, the review/escrow templates, private proof client, recovery helpers, resumable Sapient adapter and the dark app. No Threshold source was copied.
 
-**Boundaries:** native stock-wallet funding reveals its amount and source account, so it is disabled. Claim/refund signers, timing and transaction graphs remain observable. A claim discloses the reviewer secret to the indexer and chain. Votes on a fixed work fingerprint are enforced by the quorum contract; work quality, total funding and stage order require human review. Refunds need the original wallet, complete conditions, amount and refund mask, plus fees. No public exact funding total or donor roster is maintained.
-
-**Development disclosure:** This original implementation was developed with AI coding assistance under the submitter's direction. Local protocol, encryption, provider-error and server tests were run, and the authorization template was compiled, and the browser sandbox, export and recovery flows were checked. An independent audit and live-network qualification remain outstanding.
+**Development disclosure:** developed with AI coding assistance under the submitter's direction. Testnet results and privacy limits are documented; experimental software, not an independently audited production service.
 
 Tari prize-payment address: **[MAINNET_TARI_XTM_PRIZE_ADDRESS]**
 
