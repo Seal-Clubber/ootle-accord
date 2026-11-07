@@ -4,7 +4,7 @@ Community milestone funding on Tari Ootle, with stock Sapient integration.
 
 [Open the app](https://seal-clubber.github.io/ootle-accord/#explore) · [Current deployment and privacy limits](docs/current-network-deployment.md)
 
-The current Esmeralda accord was deployed on **7 November 2026** for the running **Ootle 0.49.1** network. It has a **10 testnet TARI goal**, starts at **0 funded / 10 remaining**, and requires **three of five approvals including the mandatory community reviewer**. Four reviewers share a test operator. Work is registered and ready for review after full funding.
+The current Esmeralda accord was deployed on **7 November 2026** for the running **Ootle 0.49.1** network. It has a **10 testnet TARI goal**, currently has **2 funded / 8 remaining**, and requires **three of five approvals including the mandatory community reviewer**. Four reviewers share a test operator. Work is registered and ready for review after full funding.
 
 The earlier 10 TARI private payout remains documented as a historical test. Those pre-reset contracts are archived in the app; they are no longer on the current Esmeralda network.
 

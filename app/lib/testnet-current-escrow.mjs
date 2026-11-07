@@ -59,8 +59,8 @@ export const TESTNET_CURRENT_ESCROW = deepFreeze({
   "submissionHash": "179b9799f39c063bfbd19c832577a5e6ff37932aa52df9142ac664838fae57ab",
   "recordedApprovals": 0,
   "recordedRequiredReviewerApproved": false,
-  "recordedFundingUnits": "0",
-  "recordedEpoch": 12920,
+  "recordedFundingUnits": "2000000",
+  "recordedEpoch": 12921,
   "recordedVotes": [
     false,
     false,
@@ -75,10 +75,11 @@ export const TESTNET_CURRENT_ESCROW = deepFreeze({
   "principalVault": "vault_dd9155a87d303fa5d7906c7f5bbb04dcaa98f7fefac89fc4043b09f39b3ae883",
   "feeVault": "vault_dd0221e145796133563832baba5c859085ef8759cb175f523a1eb2435e01a53c",
   "constructorTransaction": "3b4fffae90d1354a077adde5f625148ac9621f87474018410677b074e6b09ca6",
-  "recordedVersion": 1,
+  "recordedVersion": 2,
   "payoutReceiptCommitment": "18b30bfc82d9271712a07023932878e6a9e027410f27b14c06a7b406e5cfe947",
   "receiptsPath": "./docs/current-network-deployment.md",
   "immutableUpgradeRule": true,
   "workTransaction": "592d40b9a950c53f8b639ab04685b693d9b49fb586c2da8f956ebf9dcd0e8520",
-  "checkpointTransaction": "592d40b9a950c53f8b639ab04685b693d9b49fb586c2da8f956ebf9dcd0e8520"
+  "checkpointTransaction": "bb11f4ccd5f636207a1ae58a6f3d94be5040cd59eec0c9437dc8f6b0f504ee0f",
+  "fundingTransaction": "bb11f4ccd5f636207a1ae58a6f3d94be5040cd59eec0c9437dc8f6b0f504ee0f"
 });

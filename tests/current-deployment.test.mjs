@@ -13,12 +13,14 @@ test('current deployment binds committed work and a locked 10 TARI escrow to the
   assert.equal(await agreementId(deployment.agreement), deployment.agreementId);
   assert.equal(await sha256Hex(new TextEncoder().encode(deployment.work)), deployment.submissionHash);
   const state = parseEscrowSubstate(checkpoint, deployment, deployment.recordedEpoch);
-  assert.equal(state.fundedUnits, '0');
-  assert.equal(state.remainingUnits, '10000000');
+  assert.equal(state.fundedUnits, '2000000');
+  assert.equal(state.remainingUnits, '8000000');
   assert.equal(state.approvals, 0);
   assert.equal(canApproveEscrow(state, deployment.submissionHash), false);
-  assert.equal(contributionAmount('10', state), '10000000');
-  assert.throws(() => contributionAmount('10.000001', state));
+  assert.equal(contributionAmount('8', state), '8000000');
+  assert.throws(() => contributionAmount('8.000001', state));
+  assert.equal(state.refundBindings[0].value, '2000000');
+  assert.equal(state.receiptCommitments.length, 1);
   const stage = deployment.agreement.milestones[0];
   assert.equal(stage.approvalPercent, 60);
   assert.equal(stage.requiredReviewerPublicKey, stage.reviewers[2].publicKey);
