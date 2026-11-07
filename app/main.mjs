@@ -199,7 +199,18 @@ for (const deployment of TESTNET_ACCORDS) {
   ui('explore-open-accord').addEventListener('click', event => action(event.currentTarget, async () => {
     if (await loadAccord(deployment)) showView('review');
   }));
-  $(stock ? '#accord-list' : '#earlier-accord-list').append(node);
+  if (deployment.archivedOnReset) {
+    ui('funding-label').textContent = 'ARCHIVED';
+    ui('funding-note').textContent = 'Historical record from before the Esmeralda reset.';
+    ui('explore-checkpoint').textContent = 'This contract is no longer on the current testnet. Its receipts remain available.';
+    ui('fund-accord').disabled = true;
+    ui('fund-accord').textContent = 'Archived';
+    ui('funding-availability').hidden = true;
+    ui('refresh-funding').disabled = true;
+    ui('explore-open-accord').disabled = true;
+    ui('explore-open-accord').textContent = 'Archived after reset';
+  }
+  $(!deployment.archivedOnReset && stock ? '#accord-list' : '#earlier-accord-list').append(node);
 }
 
 // Agreements use reviewer wallet signatures.
@@ -511,6 +522,7 @@ async function refreshAccords() {
   refreshingAccords = true;
   try {
     await Promise.allSettled([...accordCards.values()].map(async card => {
+      if (card.deployment.archivedOnReset) return;
       const fresh = await refreshEscrow(card.deployment);
       renderAccordCard(card, fresh, true);
     }));

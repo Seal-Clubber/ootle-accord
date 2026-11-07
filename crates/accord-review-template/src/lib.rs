@@ -60,7 +60,7 @@ mod accord_review {
         }
         /// The creator fixes the delivery. After the first vote it cannot change.
         pub fn submit_work(&mut self, submission_hash: String) {
-            CallerContext::get_signer_proof_for_public_key(self.creator).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.creator));
             self.assert_open();
             assert!(
                 valid_hash(&submission_hash),
@@ -76,7 +76,7 @@ mod accord_review {
             self.assert_open();
             let index = reviewer_index as usize;
             assert!(index < self.reviewers.len(), "Reviewer index out of range");
-            CallerContext::get_signer_proof_for_public_key(self.reviewers[index]).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.reviewers[index]));
             assert!(
                 !self.submission_hash.is_empty(),
                 "Creator must submit work first"

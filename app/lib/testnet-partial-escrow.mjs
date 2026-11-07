@@ -1,6 +1,7 @@
 // Public immutable terms and a committed 7/10 checkpoint.
 import {deepFreeze} from './accord.mjs';
 export const TESTNET_PARTIAL_ESCROW = deepFreeze({
+  "archivedOnReset": true,
   "agreement": {
     "schema": "ootleaccord.agreement.v4",
     "title": "Community accord #2",

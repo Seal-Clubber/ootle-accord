@@ -19,7 +19,7 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
   const pendingForCard = () => returns?.getPending()?.component === deployment.component;
   function update() {
     const state = card.state, session = wallet.getState();
-    const closed = state.remainingUnits === '0' || state.paid || state.expired;
+    const closed = deployment.archivedOnReset || state.remainingUnits === '0' || state.paid || state.expired;
     const blocked = busy || working(session) || Boolean(session.requestId);
     ui('funding-check').hidden = !stock;
     ui('funding-check').disabled = closed || blocked;
@@ -30,7 +30,7 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
     ui('funding-pay').disabled = closed || blocked || !valid;
     ui('funding-pay').hidden = !stock;
     ui('funding-prepare').disabled = closed || blocked;
-    ui('returns-panel').hidden = !stock;
+    ui('returns-panel').hidden = !stock || deployment.archivedOnReset;
     ui('returns-find').disabled = blocked;
     ui('returns-check').hidden = !pendingForCard();
     ui('returns-check').disabled = blocked;

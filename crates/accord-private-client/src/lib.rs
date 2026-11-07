@@ -7,7 +7,7 @@ use tari_crypto::{
     keys::{PublicKey as _, SecretKey as _},
     ristretto::{RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
 };
-use tari_ootle_common_types::RistrettoSchnorrBlake2bVerifier;
+use tari_ootle_common_types::{RistrettoSchnorrBlake2bVerifier, TemplateSignatureBinding};
 use tari_ootle_wallet_crypto::{
     MaskAndValue, OutputWitness, StealthCryptoApi, StealthInputWitness, StealthOutputWitness,
 };
@@ -29,17 +29,17 @@ impl PrivateOutput {
         value: u64,
         owner: RistrettoPublicKeyBytes,
         view: RistrettoPublicKeyBytes,
-        owner_secret: Option<&RistrettoSecretKey>,
+        owner_secret: Option<(&RistrettoSecretKey, &RistrettoSecretKey)>,
         script: Option<Hash32>,
     ) -> Self {
         let crypto = StealthCryptoApi::new();
         let nonce = RistrettoSecretKey::random(&mut ::rand::rng());
         let owner_pk = RistrettoPublicKey::convert_from_byte_type(&owner).unwrap();
         let one_time =
-            crypto.derive_stealth_owner_public_key(Network::Esmeralda, &owner_pk, &nonce);
+            crypto.derive_stealth_owner_public_key(Network::Esmeralda, &owner_pk, &RistrettoPublicKey::convert_from_byte_type(&view).unwrap(), &nonce);
         let public_nonce = RistrettoPublicKey::from_secret_key(&nonce);
         let spend_secret = owner_secret
-            .map(|sk| crypto.derive_stealth_owner_secret(Network::Esmeralda, sk, &public_nonce));
+            .map(|(sk, vk)| crypto.derive_stealth_owner_secret(Network::Esmeralda, sk, vk, &public_nonce));
         if let Some(ref sk) = spend_secret {
             assert_eq!(RistrettoPublicKey::from_secret_key(sk), one_time);
         }
@@ -101,6 +101,7 @@ impl PrivateOutput {
     }
     pub fn opening_proof(
         &self,
+        network: Network,
         component: ComponentAddress,
         agreement: &str,
         old: u64,
@@ -114,6 +115,7 @@ impl PrivateOutput {
         let nonce = RistrettoSecretKey::random(&mut ::rand::rng());
         let public_nonce = RistrettoPublicKey::from_secret_key(&nonce).to_byte_type();
         let challenge = RistrettoSchnorrBlake2bVerifier::compute_challenge(
+            &TemplateSignatureBinding::component(network, component),
             domain,
             &message,
             &pk,

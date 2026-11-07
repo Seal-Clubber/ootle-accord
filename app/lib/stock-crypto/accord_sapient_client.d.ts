@@ -5,6 +5,10 @@ export function actionTransaction(component: string, principal_vault: string, fe
 
 export function constructorArgs(note_json: string, config_json: string): string;
 
+export function decodeChainExecution(encoded: string): string;
+
+export function decodeChainSubstate(encoded: string): string;
+
 export function fundingArgs(note_json: string, expected_total: string, address: string, amount: string, agreement: string, receiver_key: string): string;
 
 export function inspectEnvelope(encoded: string): string;
@@ -23,6 +27,8 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly actionTransaction: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => void;
     readonly constructorArgs: (a: number, b: number, c: number, d: number, e: number) => void;
+    readonly decodeChainExecution: (a: number, b: number, c: number) => void;
+    readonly decodeChainSubstate: (a: number, b: number, c: number) => void;
     readonly fundingArgs: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => void;
     readonly inspectEnvelope: (a: number, b: number, c: number) => void;
     readonly makeReturnNote: (a: number, b: number, c: number, d: number, e: number) => void;

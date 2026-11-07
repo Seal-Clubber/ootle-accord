@@ -1,3 +1,7 @@
+# Escrow artifacts
+
+The live-network artifact is under [current](current/README.md). The file described below is historical, preserved for the pre-reset deployment; verify it with the matching Ootle 0.47 source revision. It does not load in the current Ootle engine.
+
 # Published escrow artifact
 
 `sapient-escrow-v5.wasm` is the exact optimized **252,968-byte** WASM published on Esmeralda.
@@ -8,7 +12,7 @@
 - Source: `crates/accord-sapient-escrow-template`, Tari template library 0.35.0, engine tests 0.47.0.
 - Build: Rust 1.98.1 on Linux, release `wasm32-unknown-unknown`; Binaryen 132.0.0 `wasm-opt -Oz --enable-bulk-memory --enable-sign-ext --enable-nontrapping-float-to-int --enable-mutable-globals --enable-reference-types --enable-multivalue`.
 
-The three lifecycle tests passed using this exact artifact. To repeat on Linux:
+The three lifecycle tests passed using this exact artifact. To repeat using the historical Ootle 0.47 source revision on Linux:
 
 ```sh
 OOTLEACCORD_TEMPLATE_WASM="$PWD/artifacts/esmeralda/sapient-escrow-v5.wasm" cargo +1.97.1 test -p accord-sapient-escrow-template --test stock_wallet --locked

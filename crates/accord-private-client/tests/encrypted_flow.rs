@@ -18,8 +18,8 @@ fn real_encrypted_outputs_fund_with_one_time_signers_and_private_fees() {
     let base_pk = RistrettoPublicKey::from_secret_key(&base).to_byte_type();
     let view = RistrettoSecretKey::random(&mut ::rand::rng());
     let vp = RistrettoPublicKey::from_secret_key(&view).to_byte_type();
-    let source = PrivateOutput::new(10_000_000, base_pk, vp, Some(&base), None);
-    let fee = PrivateOutput::new(1_000_000, base_pk, vp, Some(&base), None);
+    let source = PrivateOutput::new(10_000_000, base_pk, vp, Some((&base, &view)), None);
+    let fee = PrivateOutput::new(1_000_000, base_pk, vp, Some((&base, &view)), None);
     source.validate_decryption(&view);
     fee.validate_decryption(&view);
     let shield = transfer(vec![], 11_000_000, &[source.clone(), fee.clone()], None);
@@ -34,7 +34,7 @@ fn real_encrypted_outputs_fund_with_one_time_signers_and_private_fees() {
         .stealth_transfer_with_input_bucket(TARI_TOKEN, shield, "shield")
         .build_and_seal(&base);
     test.execute_expect_success(tx, vec![]);
-    let payout = PrivateOutput::new(10_000_000, base_pk, vp, Some(&base), None);
+    let payout = PrivateOutput::new(10_000_000, base_pk, vp, Some((&base, &view)), None);
     payout.validate_decryption(&view);
     let payout_key = match payout.auth {
         SpendAuthorization::Key(pk) => pk,
@@ -63,12 +63,13 @@ fn real_encrypted_outputs_fund_with_one_time_signers_and_private_fees() {
         test.call_method(escrow, "authority_resource", args![], vec![]);
     let pledge = PrivateOutput::new(10_000_000, base_pk, vp, None, Some(root));
     pledge.validate_decryption(&view);
-    let refund = PrivateOutput::new(10_000_000, base_pk, vp, Some(&base), None);
+    let refund = PrivateOutput::new(10_000_000, base_pk, vp, Some((&base, &view)), None);
     let refund_pk = match refund.auth {
         SpendAuthorization::Key(pk) => pk,
         _ => panic!(),
     };
     let sig = pledge.opening_proof(
+        ootle_network::Network::LocalNet,
         escrow,
         &"c".repeat(64),
         0,
@@ -77,7 +78,7 @@ fn real_encrypted_outputs_fund_with_one_time_signers_and_private_fees() {
         b"ootleaccord.private-funding.v1",
     );
     let funding = transfer(vec![source.input()], 0, &[pledge.clone()], None);
-    let change = PrivateOutput::new(900_000, base_pk, vp, Some(&base), None);
+    let change = PrivateOutput::new(900_000, base_pk, vp, Some((&base, &view)), None);
     let sealer = source.spend_secret.as_ref().unwrap();
     let sealer_pk = RistrettoPublicKey::from_secret_key(sealer).to_byte_type();
     assert_ne!(sealer_pk, base_pk);

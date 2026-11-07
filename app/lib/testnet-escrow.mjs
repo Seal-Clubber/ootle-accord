@@ -1,6 +1,7 @@
 // Public immutable terms and a committed checkpoint. Refresh explicitly for current status.
 import {deepFreeze} from './accord.mjs';
 export const TESTNET_ESCROW = deepFreeze({
+  "archivedOnReset": true,
   "agreement": {
     "schema": "ootleaccord.agreement.v4",
     "title": "10 tTARI community escrow",

@@ -3,6 +3,8 @@
 export const memory: WebAssembly.Memory;
 export const actionTransaction: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => void;
 export const constructorArgs: (a: number, b: number, c: number, d: number, e: number) => void;
+export const decodeChainExecution: (a: number, b: number, c: number) => void;
+export const decodeChainSubstate: (a: number, b: number, c: number) => void;
 export const fundingArgs: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number) => void;
 export const inspectEnvelope: (a: number, b: number, c: number) => void;
 export const makeReturnNote: (a: number, b: number, c: number, d: number, e: number) => void;

@@ -1,0 +1,12 @@
+{
+  "ootleVersion": "0.49.0",
+  "templateLibVersion": "0.37.0",
+  "compiler": "rustc 1.98.1",
+  "optimizer": "Binaryen 132.0.0; optimizeLevel=2; shrinkLevel=2",
+  "bytes": 254501,
+  "sha256": "0039db0ddcef1feabcf98b992204372253de066aa5a9a5026e27e04d5139374f",
+  "deploymentStatus": "published",
+  "templateAddress": "f4e2fe6ed85b10079ee72e4e61b08b3789f679c42085af63e9e1b7bb2b986a01",
+  "publicationTransaction": "3c70f97d7b03c54de53a380d142b9c5b910bc9d1a9c6643dfeb3139a6cc1328b",
+  "engineTestVersion": "0.49.2"
+}

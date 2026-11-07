@@ -1,6 +1,7 @@
 // Verified stock-Sapient escrow and completed private payout.
 import {deepFreeze} from './accord.mjs';
 export const TESTNET_SAPIENT_ESCROW = deepFreeze({
+  "archivedOnReset": true,
   "agreement": {
     "schema": "ootleaccord.agreement.v5",
     "title": "Community accord · Sapient",

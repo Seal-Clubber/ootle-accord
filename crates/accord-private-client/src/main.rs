@@ -100,10 +100,10 @@ fn main() {
             let op = RistrettoPublicKey::from_secret_key(&owner).to_byte_type();
             let vp = RistrettoPublicKey::from_secret_key(&view).to_byte_type();
             let (po, pv) = wallet_keys(config["payout_address"].as_str().unwrap());
-            let source = PrivateOutput::new(funding_units, op, vp, Some(&owner), None);
-            let fee = PrivateOutput::new(1_000_000, op, vp, Some(&owner), None);
+            let source = PrivateOutput::new(funding_units, op, vp, Some((&owner, &view)), None);
+            let fee = PrivateOutput::new(1_000_000, op, vp, Some((&owner, &view)), None);
             let payout = PrivateOutput::new(target_units, po, pv, None, None);
-            let refund = PrivateOutput::new(funding_units, op, vp, Some(&owner), None);
+            let refund = PrivateOutput::new(funding_units, op, vp, Some((&owner, &view)), None);
             source.validate_decryption(&view);
             fee.validate_decryption(&view);
             refund.validate_decryption(&view);
@@ -170,6 +170,7 @@ fn main() {
                 _ => panic!(),
             };
             let sig = pledge.opening_proof(
+                ootle_network::Network::Esmeralda,
                 component,
                 config["agreement_id"].as_str().unwrap(),
                 0,
@@ -179,7 +180,7 @@ fn main() {
             );
             assert!(j.fee.value > 100_000, "Private fee output too small");
             let fee_change =
-                PrivateOutput::new(j.fee.value - 100_000, op, vp, Some(&j.owner), None);
+                PrivateOutput::new(j.fee.value - 100_000, op, vp, Some((&j.owner, &j.view)), None);
             fee_change.validate_decryption(&j.view);
             let signer =
                 RistrettoPublicKey::from_secret_key(j.source.spend_secret.as_ref().unwrap())
@@ -283,6 +284,7 @@ fn main() {
                     _ => panic!("Refund must be key-only"),
                 };
                 let proof = pledge.opening_proof(
+                    ootle_network::Network::Esmeralda,
                     component,
                     config["agreement_id"].as_str().unwrap(),
                     pledge.value,

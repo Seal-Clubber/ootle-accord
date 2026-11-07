@@ -11,6 +11,14 @@ test('release artifact matches the immutable deployment manifest',async()=>{
  const code=await readFile(new URL('../artifacts/esmeralda/sapient-escrow-v5.wasm',import.meta.url));
  assert.equal(code.length,manifest.bytes);assert.equal(createHash('sha256').update(code).digest('hex'),manifest.sha256);assert.equal(manifest.templateAddress,demo.templateAddress);
 });
+
+test('current-network release artifact matches its separate manifest', async () => {
+ const manifest = JSON.parse(await readFile(new URL('../artifacts/esmeralda/current/manifest.json', import.meta.url), 'utf8'));
+ const code = await readFile(new URL('../artifacts/esmeralda/current/sapient-escrow.wasm', import.meta.url));
+ assert.equal(manifest.ootleVersion, '0.49.0');
+ assert.equal(code.length, manifest.bytes);
+ assert.equal(createHash('sha256').update(code).digest('hex'), manifest.sha256);
+});
 test('real browser WASM makes a wallet-bound return, encrypts its recovery memo and omits private receipt material from funding args',()=>{
  const note=JSON.parse(makeReturnNote(address,'3000000'));const binding=JSON.parse(publicReturnBinding(JSON.stringify(note)));
  const payload=JSON.parse(fundingArgs(JSON.stringify(note),'7000000',address,'3000000',demo.agreementId,'5ad6cb9d9ae794119bfc14cd467032e9e671ea9d9c5fccfea86250b046de8d6c'));

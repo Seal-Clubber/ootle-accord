@@ -8,14 +8,16 @@ license = "MIT"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-tari_template_lib = "=0.35.0"
-tari_bor = "=0.16.5"
+tari_template_lib = "=0.37.0"
+tari_bor = "=0.16.6"
 
 [dev-dependencies]
-tari_template_test_tooling = "=0.47.0"
+tari_template_test_tooling = "=0.49.0"
 accord-private-client = { path = "../accord-private-client" }
 accord-sapient-client = { path = "../accord-sapient-client" }
-tari_crypto = "=0.24.0"
-ootle_byte_type = { version = "=0.17.0", features = ["crypto"] }
+tari_crypto = "=0.24.1"
+ootle_byte_type = { version = "=0.18.0", features = ["crypto"] }
 rand = "0.10"
-tari_ootle_wallet_crypto = "=0.48.0"
+tari_ootle_wallet_crypto = "=0.50.0"
+
+ootle-network = "=0.2.0"

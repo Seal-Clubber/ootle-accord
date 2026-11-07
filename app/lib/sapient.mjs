@@ -8,6 +8,7 @@ import { REVIEW_DEPLOYMENTS, REVIEW_DEPENDENCIES } from './review-deployments.mj
 import { fundingCoins, selectFundingCoins, assertLivePrivateCoin } from './stock-funding.mjs';
 import { makeFundingReturn, makeFundingArgs, restoreMemoReceipt } from './stock-client.mjs';
 import { refreshEscrow, canApproveEscrow } from './escrow-funding.mjs';
+import { decodeSubstateResponse } from './chain-codec.mjs';
 
 const UINT64_MAX = (1n << 64n) - 1n;
 const RESOURCE = /^resource_[a-f0-9]{64}$/i;
@@ -477,7 +478,7 @@ export function createSapientAdapter({
         // this quote; never mark a private holding spent based on a read error.
         for (const coin of coins.slice(0, 64)) {
           try {
-            const publicKey = assertLivePrivateCoin(await call('tari_getSubstate', { substateId: `utxo_${NATIVE_TARI_RESOURCE.slice(9)}_${coin.commitment}` }));
+            const publicKey = assertLivePrivateCoin(await decodeSubstateResponse(await call('tari_getSubstate', { substateId: `utxo_${NATIVE_TARI_RESOURCE.slice(9)}_${coin.commitment}` })));
             live.push(Object.freeze({ ...coin, publicKey }));
           } catch { /* unreadable, non-key or spent: don't select it */ }
           checkEpoch(epoch);

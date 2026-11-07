@@ -19,7 +19,7 @@ fn zero_value_native_receipt_preserves_an_encrypted_memo_without_holding_funds()
         0,
         RistrettoPublicKey::from_secret_key(&owner).to_byte_type(),
         RistrettoPublicKey::from_secret_key(&view).to_byte_type(),
-        Some(&owner),
+        Some((&owner, &view)),
         None,
     );
     let api = StealthCryptoApi::new();

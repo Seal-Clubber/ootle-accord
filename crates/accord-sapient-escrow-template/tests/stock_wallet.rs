@@ -70,10 +70,10 @@ fn fixture() -> Fixture {
     let view_pk = RistrettoPublicKey::from_secret_key(&view).to_byte_type();
     let sources: Vec<_> = [7_000_000, 3_000_000, 4_000_000, 1]
         .into_iter()
-        .map(|v| PrivateOutput::new(v, owner, view_pk, Some(&base), None))
+        .map(|v| PrivateOutput::new(v, owner, view_pk, Some((&base, &view)), None))
         .collect();
     let fees: Vec<_> = (0..sources.len())
-        .map(|_| PrivateOutput::new(1_000_000, owner, view_pk, Some(&base), None))
+        .map(|_| PrivateOutput::new(1_000_000, owner, view_pk, Some((&base, &view)), None))
         .collect();
     let all: Vec<_> = sources.iter().chain(&fees).cloned().collect();
     let total = all.iter().map(|o| o.value).sum::<u64>();
@@ -85,7 +85,7 @@ fn fixture() -> Fixture {
         .stealth_transfer_with_input_bucket(TARI_TOKEN, shield, "shield")
         .build_and_seal(&base);
     test.execute_expect_success(tx, vec![]);
-    let payout = PrivateOutput::new(GOAL, owner, view_pk, Some(&base), None);
+    let payout = PrivateOutput::new(GOAL, owner, view_pk, Some((&base, &view)), None);
     let reviewers: Vec<_> = (1..=5).map(|i| test.new_key_pair(i).0).collect();
     let keys: Vec<_> = reviewers
         .iter()
@@ -143,7 +143,7 @@ fn status(f: &mut Fixture) -> (u64, u64, u64, bool) {
 fn fund(f: &mut Fixture, index: usize, expected: u64, success: bool) {
     let source = &f.sources[index];
     let fee = &f.fees[index];
-    let refund = PrivateOutput::new(source.value, f.owner, f.view_pk, Some(&f.base), None);
+    let refund = PrivateOutput::new(source.value, f.owner, f.view_pk, Some((&f.base, &f.view)), None);
     refund.validate_decryption(&f.view);
     let source_pk =
         RistrettoPublicKey::from_secret_key(source.spend_secret.as_ref().unwrap()).to_byte_type();
@@ -157,7 +157,7 @@ fn fund(f: &mut Fixture, index: usize, expected: u64, success: bool) {
         &[],
         Some(RevealedOutput::new(Amount::from(source.value), source_pk)),
     );
-    let change = PrivateOutput::new(900_000, f.owner, f.view_pk, Some(&f.base), None);
+    let change = PrivateOutput::new(900_000, f.owner, f.view_pk, Some((&f.base, &f.view)), None);
     let fees = transfer(
         vec![fee.input()],
         0,
@@ -218,7 +218,7 @@ fn vote(f: &mut Fixture, i: usize) {
 }
 fn claim(f: &mut Fixture, dest: &PrivateOutput, success: bool) {
     let proof = transfer(vec![], GOAL, &[dest.clone()], None);
-    let sig = return_signature(f.escrow, None, &proof, &f.payout.nonce);
+    let sig = return_signature(ootle_network::Network::LocalNet, f.escrow, None, &proof, &f.payout.nonce);
     let relay = RistrettoSecretKey::random(&mut ::rand::rng());
     let tx = f
         .test
@@ -259,7 +259,7 @@ fn full_goal_and_required_reviewer_gate_fixed_private_payout() {
     let payout = f.payout.clone();
     claim(&mut f, &payout, false);
     vote(&mut f, 2);
-    let wrong = PrivateOutput::new(GOAL, f.owner, f.view_pk, Some(&f.base), None);
+    let wrong = PrivateOutput::new(GOAL, f.owner, f.view_pk, Some((&f.base, &f.view)), None);
     claim(&mut f, &wrong, false);
     claim(&mut f, &payout, true);
     assert_eq!(status(&mut f).1, 0);
@@ -275,7 +275,7 @@ fn refund_requires_receipt_authority_fixed_destination_and_expiry_with_organizer
     fund(&mut f, 0, 0, true);
     let refund = f.refunds[0].clone();
     let proof = transfer(vec![], refund.value, &[refund.clone()], None);
-    let sig = return_signature(f.escrow, Some(0), &proof, &refund.nonce);
+    let sig = return_signature(ootle_network::Network::LocalNet, f.escrow, Some(0), &proof, &refund.nonce);
     let relay = RistrettoSecretKey::random(&mut ::rand::rng());
     let tx = f
         .test
@@ -296,12 +296,12 @@ fn refund_requires_receipt_authority_fixed_destination_and_expiry_with_organizer
             refund.value,
             f.owner,
             f.view_pk,
-            Some(&f.base),
+            Some((&f.base, &f.view)),
             None,
         )],
         None,
     );
-    let wrong_sig = return_signature(f.escrow, Some(0), &wrong, &refund.nonce);
+    let wrong_sig = return_signature(ootle_network::Network::LocalNet, f.escrow, Some(0), &wrong, &refund.nonce);
     let tx = f
         .test
         .transaction()
@@ -310,7 +310,7 @@ fn refund_requires_receipt_authority_fixed_destination_and_expiry_with_organizer
         })
         .build_and_seal(&relay);
     f.test.execute_expect_failure(tx, vec![]);
-    let forged = return_signature(f.escrow, Some(0), &proof, &relay);
+    let forged = return_signature(ootle_network::Network::LocalNet, f.escrow, Some(0), &proof, &relay);
     let tx = f
         .test
         .transaction()
@@ -343,7 +343,7 @@ fn refund_requires_receipt_authority_fixed_destination_and_expiry_with_organizer
             refund.value,
             f.owner,
             f.view_pk,
-            Some(&f.base),
+            Some((&f.base, &f.view)),
             None,
         )],
         None,

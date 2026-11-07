@@ -169,7 +169,7 @@ mod sapient_escrow {
             index
         }
         pub fn submit_work(&mut self, hash: String) {
-            CallerContext::get_signer_proof_for_public_key(self.creator).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.creator));
             self.assert_open();
             assert!(
                 !self.paid && valid_hash(&hash) && !self.votes.iter().any(|v| *v),
@@ -181,7 +181,7 @@ mod sapient_escrow {
             self.assert_open();
             let i = index as usize;
             assert!(i < self.reviewers.len(), "Unknown reviewer");
-            CallerContext::get_signer_proof_for_public_key(self.reviewers[i]).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.reviewers[i]));
             assert!(
                 !self.paid && self.total == self.target && !self.submission_hash.is_empty(),
                 "Funding and work must be complete"
@@ -249,7 +249,7 @@ mod sapient_escrow {
             self.fees.pay_fee(Amount::from(ACTION_FEE));
         }
         pub fn withdraw_unused_fees(&mut self) -> Bucket {
-            CallerContext::get_signer_proof_for_public_key(self.creator).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.creator));
             assert!(
                 self.paid || (Consensus::current_epoch() >= self.deadline && self.total == 0),
                 "Unresolved principal"
@@ -406,9 +406,10 @@ mod sapient_escrow {
         ))
         .unwrap();
         assert!(
-            intrinsics::schnorr_verify_with_domain(
+            intrinsics::verify_signature(
                 &PublicKey::from(nonce),
                 RETURN_DOMAIN,
+                SignatureScope::CurrentComponent,
                 &message,
                 signature
             ),

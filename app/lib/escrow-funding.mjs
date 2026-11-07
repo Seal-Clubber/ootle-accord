@@ -1,6 +1,7 @@
 import { ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA, rawUnits, toRawAmount, fromRawAmount, validateAgreement, requiredApprovals } from './accord.mjs';
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
 import { REVIEW_DEPLOYMENTS } from './review-deployments.mjs';
+import { decodeSubstateResponse } from './chain-codec.mjs';
 
 const INDEXER = 'https://ootle-indexer-a.tari.com';
 const uint = value => {
@@ -73,6 +74,7 @@ export function parseStockEscrowSubstate(response, deployment, epoch) {
   if (agreement.schema !== SAPIENT_ESCROW_SCHEMA || agreement.milestones.length !== 1 || response.verified !== true ||
       !Number.isSafeInteger(response.version) || response.version < (deployment.recordedVersion ?? 0) ||
       component?.header?.template_address !== deployment.templateAddress || component.header.owner_rule !== 'None' ||
+      (deployment.immutableUpgradeRule && component.header.upgrade_rule !== 'Locked') ||
       !Array.isArray(s) || s.length !== 22 || s[0] !== deployment.agreementId || s[1] !== stage.id || key(s[2]) !== reviewerKeyFromWallet(agreement.creatorWalletAddress) ||
       key(s[3]) !== stage.payoutPublicKey || key(s[4]) !== stage.payoutNonce ||
       !Array.isArray(s[5]) || s[5].length !== stage.reviewers.length || s[5].some((k,i) => key(k) !== stage.reviewers[i].publicKey) ||
@@ -110,5 +112,5 @@ export async function refreshEscrow(deployment, fetcher = globalThis.fetch) {
   if (responses.some(r => !r.ok)) throw new Error('Could not refresh the Esmeralda balance.');
   const [network, substate] = await Promise.all(responses.map(r => r.json()));
   if (network.network !== 'esmeralda' || network.network_byte !== 38) throw new Error('Indexer is on the wrong network.');
-  return Object.freeze({ ...parseEscrowSubstate(substate, deployment, network.epoch), checkedAt: Date.now() });
+  return Object.freeze({ ...parseEscrowSubstate(await decodeSubstateResponse(substate), deployment, network.epoch), checkedAt: Date.now() });
 }

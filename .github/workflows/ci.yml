@@ -13,27 +13,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install pinned Rust target
-        run: rustup toolchain install 1.97.1 --profile minimal --target wasm32-unknown-unknown
+        run: rustup toolchain install 1.98.1 --profile minimal --target wasm32-unknown-unknown
       - name: Compile authorization template
-        run: cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-review-template --locked
+        run: cargo +1.98.1 build --target wasm32-unknown-unknown --release -p accord-review-template --locked
       - name: Exercise quorum and authorization in the Tari engine
-        run: cargo +1.97.1 test -p accord-review-template --test quorum_engine --locked
+        run: cargo +1.98.1 test -p accord-review-template --test quorum_engine --locked
       - name: Compile private escrow template
-        run: cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-escrow-template --locked
+        run: cargo +1.98.1 build --target wasm32-unknown-unknown --release -p accord-escrow-template --locked
       - name: Check private custody, cap, required vote, payout and refunds in the Tari engine
-        run: cargo +1.97.1 test -p accord-escrow-template --test private_escrow --locked
+        run: cargo +1.98.1 test -p accord-escrow-template --test private_escrow --locked
       - name: Exercise encrypted private funding, one-time signers and private fees
-        run: cargo +1.97.1 test -p accord-private-client --test encrypted_flow --locked
+        run: cargo +1.98.1 test -p accord-private-client --test encrypted_flow --locked
       - name: Build stock-Sapient escrow and browser proof helper
         run: |
-          cargo +1.97.1 build --target wasm32-unknown-unknown --release -p accord-sapient-escrow-template --locked
-          cargo +1.97.1 build --target wasm32-unknown-unknown --release --lib -p accord-sapient-client --locked
+          cargo +1.98.1 build --target wasm32-unknown-unknown --release -p accord-sapient-escrow-template --locked
+          cargo +1.98.1 build --target wasm32-unknown-unknown --release --lib -p accord-sapient-client --locked
       - name: Exercise stock-wallet funding and encrypted memo recovery
-        run: cargo +1.97.1 test -p accord-sapient-escrow-template --locked
+        run: cargo +1.98.1 test -p accord-sapient-escrow-template --locked
       - name: Exercise the exact deployed escrow artifact
         env:
-          OOTLEACCORD_TEMPLATE_WASM: ${{ github.workspace }}/artifacts/esmeralda/sapient-escrow-v5.wasm
-        run: cargo +1.97.1 test -p accord-sapient-escrow-template --test stock_wallet --locked
+          OOTLEACCORD_TEMPLATE_WASM: ${{ github.workspace }}/artifacts/esmeralda/current/sapient-escrow.wasm
+        run: cargo +1.98.1 test -p accord-sapient-escrow-template --test stock_wallet --locked
   verify:
     runs-on: ubuntu-latest
     steps:

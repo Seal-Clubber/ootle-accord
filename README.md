@@ -2,15 +2,17 @@
 
 Community milestone funding on Tari Ootle, with stock Sapient integration.
 
-[Open the app](https://seal-clubber.github.io/ootle-accord/#explore) · [Live receipts and privacy limits](docs/sapient-escrow-testnet.md)
+[Open the app](https://seal-clubber.github.io/ootle-accord/#explore) · [Current deployment and privacy limits](docs/current-network-deployment.md)
 
-The latest Esmeralda accord completed its live funding and payout: **10 tTARI funded and privately paid to the fixed creator wallet**. It began at 7/10; a community wallet funded the final 3 and recorded the required approval. Two test-wallet votes completed the three-of-five quorum. Four designated reviewers share a test operator. The recipient wallet verified the full 10 tTARI as an unspent private output. Further funding is closed.
+The current Esmeralda accord was deployed on **7 November 2026** for the running **Ootle 0.49.1** network. It has a **10 testnet TARI goal**, starts at **0 funded / 10 remaining**, and requires **three of five approvals including the mandatory community reviewer**. Four reviewers share a test operator. Work is registered and ready for review after full funding.
+
+The earlier 10 TARI private payout remains documented as a historical test. Those pre-reset contracts are archived in the app; they are no longer on the current Esmeralda network.
 
 Contribution amounts and the exact remaining counter are public. The deposit uses one-time signing keys and omits the donor’s base wallet address. Wallet preparation, transaction history and timing can still link activity. This does not establish donor anonymity.
 
 ## Use it
 
-The current **Community accord · Sapient** is complete. Its work, three recorded approvals, paid status and receipts remain visible. For a new, open deployment, the flow is:
+Open **Community accord**. Its verified remaining balance refreshes automatically. The flow is:
 
 1. Open the accord, then **Fund this accord**.
 2. Choose an amount or **Max**, then **Check coins in Sapient**. This explicitly requests a private view grant to read coin amounts and memos; they stay in tab memory. Seeds, view secrets and wallet spending keys stay in Sapient.
@@ -20,7 +22,7 @@ The current **Community accord · Sapient** is complete. Its work, three recorde
 
 There is no custom wallet build, funding relay or intermediate funding wallet in the app. The live demonstration used an isolated, agent-controlled account with the stock SDK; it does not substitute for a test of the installed Chrome extension. The app checks the actual provider capabilities and fails before spending if they are missing. The user still approves each wallet spend in Sapient.
 
-Older immutable escrows remain under **Earlier test accords**, with separate work and receipts. They cannot acquire the new funding method. **Create** currently exports public agreement terms; it does not publish another escrow.
+Pre-reset escrows remain under **Earlier test accords** as historical records, with separate work and receipts. Their wallet controls are disabled. **Create** currently exports public agreement terms; it does not publish another escrow.
 
 ## Run and check
 
@@ -53,11 +55,11 @@ Memo recovery was tested on Esmeralda using a fresh local SDK ledger and the sam
 
 The JavaScript suite covers exact amounts, fixed terms, chain parsing, coin liveness/selection, stale funding, account changes, wallet request recovery, memo restoration, browser WASM and duplicate-return guards. It also prevents an already-recorded reviewer or completed payout from opening another paid approval request. The approval button stays disabled after a successful vote in the current session; fresh on-chain checks block repeats after reload. Mock provider tests alone do not prove an installed-extension round trip. Native Tari-engine tests exercise real encrypted deposits, caps, required votes, payout, refunds and receipt encryption. The same three escrow lifecycle tests passed against the exact optimized artifact published on Esmeralda.
 
-With Rust 1.97.1 and `wasm32-unknown-unknown` installed:
+With Rust 1.98.1 and `wasm32-unknown-unknown` installed:
 
 ```sh
-cargo +1.97.1 test -p accord-sapient-escrow-template --locked
-cargo +1.97.1 build -p accord-sapient-client --lib --release --target wasm32-unknown-unknown --locked
+cargo +1.98.1 test -p accord-sapient-escrow-template --locked
+cargo +1.98.1 build -p accord-sapient-client --lib --release --target wasm32-unknown-unknown --locked
 ```
 
 Regenerate the browser helper with `wasm-bindgen-cli` **0.2.128**, using `--target web --out-dir app/lib/stock-crypto --out-name accord_sapient_client` on the resulting client WASM. The deployed template binary and SHA-256 are preserved under [artifacts/esmeralda](artifacts/esmeralda/README.md). Set `OOTLEACCORD_TEMPLATE_WASM` to that artifact’s absolute path to exercise it directly in the engine tests. Compiler version, optimization and source formatting can change binary hashes.
@@ -68,7 +70,7 @@ The earlier quorum/private-output templates and native proof client remain in th
 
 Pushing to `main` runs tests, packages the static app and deploys GitHub Pages. All assets use relative paths. A same-origin version manifest detects new builds and loads fresh versioned assets while idle on Accords. Updates defer during drafts, review, contribution/return panels and unresolved transactions.
 
-Assets and fonts are local. There is no analytics service. GitHub can observe normal visitor connection metadata; the public Tari indexer sees public contract and transaction reads/broadcasts. The HTML carries a restrictive content policy permitting local WASM compilation, and a no-referrer policy. See [server policy](app/server.mjs) and [current chain evidence](docs/sapient-escrow-testnet.md).
+Assets and fonts are local. There is no analytics service. GitHub can observe normal visitor connection metadata; the public Tari indexer sees public contract and transaction reads/broadcasts. The HTML carries a restrictive content policy permitting local WASM compilation, and a no-referrer policy. See [server policy](app/server.mjs) and [current chain evidence](docs/current-network-deployment.md).
 
 ## Contest and provenance
 

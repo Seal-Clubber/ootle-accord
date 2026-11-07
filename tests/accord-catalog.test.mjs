@@ -10,9 +10,11 @@ import {parseEscrowSubstate,contributionAmount,canApproveEscrow} from '../app/li
 const fixture=JSON.parse(await readFile(new URL('./fixtures/partial-escrow-substate.json',import.meta.url),'utf8'));
 
 test('funded accords keep distinct terms, work hashes and verified component targets',async()=>{
-  assert.equal(TESTNET_ACCORDS.length,3);
-  assert.equal(new Set(TESTNET_ACCORDS.map(d=>d.agreementId)).size,3);
-  assert.equal(new Set(TESTNET_ACCORDS.map(d=>d.component)).size,3);
+  assert.equal(TESTNET_ACCORDS.length,4);
+  assert.equal(new Set(TESTNET_ACCORDS.map(d=>d.agreementId)).size,4);
+  assert.equal(new Set(TESTNET_ACCORDS.map(d=>d.component)).size,4);
+  assert.equal(TESTNET_ACCORDS[0].archivedOnReset,undefined);
+  assert.ok(TESTNET_ACCORDS.slice(1).every(d=>d.archivedOnReset));
   for(const d of TESTNET_ACCORDS){
     assert.equal(await agreementId(d.agreement),d.agreementId);
     assert.equal(await sha256Hex(new TextEncoder().encode(d.work)),d.submissionHash);

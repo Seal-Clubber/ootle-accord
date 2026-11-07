@@ -1,5 +1,6 @@
 import { refreshEscrow } from './escrow-funding.mjs';
 import { makePublicAction } from './stock-client.mjs';
+import { decodeTransactionResponse } from './chain-codec.mjs';
 
 const HOST = 'https://ootle-indexer-a.tari.com';
 const KEY = 'ootleaccord.return.pending.v1';
@@ -22,14 +23,14 @@ export function createReturnClient({ storage = globalThis.sessionStorage, fetche
     const response = await fetcher(HOST + path, { ...options(), method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transaction }) });
     const body = await response.json();
     if (!response.ok || body.error) throw new Error(body.error?.message || 'The indexer response was unavailable. Check the existing return before trying again.');
-    return body;
+    return decodeTransactionResponse(body);
   }
   async function check() {
     if (!pending) throw new Error('There is no return transaction to check.');
     const current = pending;
     const response = await fetcher(`${HOST}/transactions/${current.id}/result`, options());
     if (!response.ok) throw new Error('The return has not been located yet. Its transaction ID has been kept; check again later.');
-    const body = await response.json();
+    const body = await decodeTransactionResponse(await response.json());
     const final = body.result?.Finalized;
     if (!final || final.final_decision === null) return { status: 'pending', ...current };
     const diff = final.execution_result?.finalize?.result?.Accept;

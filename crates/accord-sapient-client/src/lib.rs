@@ -8,13 +8,32 @@ use tari_crypto::{
     keys::{PublicKey as _, SecretKey as _},
     ristretto::{RistrettoPublicKey, RistrettoSchnorr, RistrettoSecretKey},
 };
-use tari_ootle_common_types::{Epoch, InputDeclaration, RistrettoSchnorrBlake2bVerifier};
+use tari_ootle_common_types::{Epoch, InputDeclaration, RistrettoSchnorrBlake2bVerifier, TemplateSignatureBinding};
 use tari_ootle_transaction::{Transaction, TransactionEnvelope, args};
 use tari_ootle_wallet_crypto::StealthCryptoApi;
 use tari_ootle_wallet_crypto::memo::Memo;
 use tari_template_lib::prelude::*;
 use tari_template_lib_types::stealth::RevealedOutput;
 use wasm_bindgen::prelude::*;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+// Current indexers transport chain values as base64 CBOR. Decode with the same
+// pinned protocol types used to construct transactions; reject trailing data.
+#[wasm_bindgen(js_name=decodeChainSubstate)]
+pub fn decode_chain_substate(encoded: &str) -> Result<String, JsError> {
+    let bytes = STANDARD.decode(encoded).map_err(|e| JsError::new(&e.to_string()))?;
+    let value: tari_engine_types::substate::SubstateValue =
+        tari_bor::decode_exact(&bytes).map_err(|e| JsError::new(&e.to_string()))?;
+    serde_json::to_string(&value).map_err(|e| JsError::new(&e.to_string()))
+}
+
+#[wasm_bindgen(js_name=decodeChainExecution)]
+pub fn decode_chain_execution(encoded: &str) -> Result<String, JsError> {
+    let bytes = STANDARD.decode(encoded).map_err(|e| JsError::new(&e.to_string()))?;
+    let value: tari_engine_types::commit_result::ExecuteResult =
+        tari_bor::decode_exact(&bytes).map_err(|e| JsError::new(&e.to_string()))?;
+    serde_json::to_string(&value).map_err(|e| JsError::new(&e.to_string()))
+}
 
 const RETURN_DOMAIN: &[u8] = b"ootleaccord.private-return.v5";
 #[wasm_bindgen(js_name=inspectEnvelope)]
@@ -70,7 +89,7 @@ fn parse_receipt(json: &str) -> Result<ReturnReceipt, JsError> {
 pub fn binding(receipt: &ReturnReceipt) -> (RistrettoPublicKeyBytes, RistrettoPublicKeyBytes) {
     let owner = RistrettoPublicKey::convert_from_byte_type(&receipt.owner).unwrap();
     let key = StealthCryptoApi::new()
-        .derive_stealth_owner_public_key(ootle_network::Network::Esmeralda, &owner, &receipt.nonce)
+        .derive_stealth_owner_public_key(ootle_network::Network::Esmeralda, &owner, &RistrettoPublicKey::convert_from_byte_type(&receipt.view).unwrap(), &receipt.nonce)
         .to_byte_type();
     (
         key,
@@ -87,6 +106,7 @@ pub fn statement(receipt: &ReturnReceipt) -> StealthTransferStatement {
     transfer(vec![], receipt.value, &[destination(receipt)], None)
 }
 pub fn return_signature(
+    network: ootle_network::Network,
     component: ComponentAddress,
     index: Option<u32>,
     proof: &StealthTransferStatement,
@@ -103,7 +123,7 @@ pub fn return_signature(
     let secret = RistrettoSecretKey::random(&mut ::rand::rng());
     let public = RistrettoPublicKey::from_secret_key(&secret).to_byte_type();
     let challenge =
-        RistrettoSchnorrBlake2bVerifier::compute_challenge(RETURN_DOMAIN, &message, &pk, &public);
+        RistrettoSchnorrBlake2bVerifier::compute_challenge(&TemplateSignatureBinding::component(network, component), RETURN_DOMAIN, &message, &pk, &public);
     SignaturePayload::RistrettoSchnorrBlake2b(
         RistrettoSchnorr::sign_raw_uniform(nonce, secret, &challenge)
             .unwrap()
@@ -281,7 +301,7 @@ pub fn action_transaction(
         VaultId::from_str(principal_vault).map_err(|_| JsError::new("Invalid principal vault"))?;
     let fees = VaultId::from_str(fee_vault).map_err(|_| JsError::new("Invalid fee vault"))?;
     let proof = statement(&note);
-    let sig = return_signature(c, refund_index, &proof, &note.nonce);
+    let sig = return_signature(ootle_network::Network::Esmeralda, c, refund_index, &proof, &note.nonce);
     let return_commitment = proof.outputs_statement.outputs[0].output.commitment;
     // A throwaway transaction sealer, not a wallet or a key controlling funds.
     let sealer = RistrettoSecretKey::random(&mut ::rand::rng());

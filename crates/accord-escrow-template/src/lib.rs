@@ -168,9 +168,10 @@ mod accord_escrow {
             ))
             .unwrap();
             assert!(
-                intrinsics::schnorr_verify_with_domain(
+                intrinsics::verify_signature(
                     &PublicKey::from(mask_key),
                     FUNDING_DOMAIN,
+                    SignatureScope::CurrentComponent,
                     &message,
                     &opening_signature
                 ),
@@ -190,7 +191,7 @@ mod accord_escrow {
             self.total = new_total;
         }
         pub fn submit_work(&mut self, hash: String) {
-            CallerContext::get_signer_proof_for_public_key(self.creator).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.creator));
             self.assert_open();
             assert!(
                 valid_hash(&hash) && !self.votes.iter().any(|v| *v),
@@ -202,7 +203,7 @@ mod accord_escrow {
             self.assert_open();
             let i = index as usize;
             assert!(i < self.reviewers.len(), "Unknown reviewer");
-            CallerContext::get_signer_proof_for_public_key(self.reviewers[i]).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.reviewers[i]));
             assert!(
                 self.total == self.target && !self.submission_hash.is_empty(),
                 "Funding and work must be complete"
@@ -216,7 +217,7 @@ mod accord_escrow {
         }
         pub fn claim(&mut self, transfer: StealthTransferStatement) {
             self.assert_open();
-            CallerContext::get_signer_proof_for_public_key(self.creator).drop();
+            CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.creator));
             assert!(
                 !self.paid && self.total == self.target && self.is_approved(),
                 "Payout is not authorized"
@@ -300,9 +301,10 @@ mod accord_escrow {
             ))
             .unwrap();
             assert!(
-                intrinsics::schnorr_verify_with_domain(
+                intrinsics::verify_signature(
                     &PublicKey::from(key),
                     REFUND_DOMAIN,
+                    SignatureScope::CurrentComponent,
                     &message,
                     &opening_signature
                 ),

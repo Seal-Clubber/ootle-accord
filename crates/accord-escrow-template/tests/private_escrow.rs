@@ -3,7 +3,7 @@ use tari_crypto::{
     keys::{PublicKey as _, SecretKey as _},
     ristretto::{RistrettoPublicKey, RistrettoSchnorr, pedersen::ristretto_pedersen_h_compressed},
 };
-use tari_ootle_common_types::RistrettoSchnorrBlake2bVerifier;
+use tari_ootle_common_types::{RistrettoSchnorrBlake2bVerifier, TemplateSignatureBinding};
 use tari_template_lib::prelude::*;
 use tari_template_test_tooling::{
     TemplateTest,
@@ -127,7 +127,7 @@ fn proof(
     let nonce = RistrettoSecretKey::random(&mut ::rand::rng());
     let public_nonce = RistrettoPublicKey::from_secret_key(&nonce).to_byte_type();
     let challenge =
-        RistrettoSchnorrBlake2bVerifier::compute_challenge(domain, &message, &pk, &public_nonce);
+        RistrettoSchnorrBlake2bVerifier::compute_challenge(&TemplateSignatureBinding::component(ootle_network::Network::LocalNet, f.escrow), domain, &message, &pk, &public_nonce);
     SignaturePayload::RistrettoSchnorrBlake2b(
         RistrettoSchnorr::sign_raw_uniform(mask, nonce, &challenge)
             .unwrap()
