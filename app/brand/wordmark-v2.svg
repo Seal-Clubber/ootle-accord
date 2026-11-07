@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="656" height="128" viewBox="0 0 656 128" fill="none">
+  <title>OotleAccord</title>
+  <g transform="translate(6 10) scale(.94)" fill="#c9eea7">
+    <path d="M85 30C75 17 61 12 46 14C22 15 6 34 6 58C6 83 24 100 49 100C68 100 84 89 103 84C112 81 120 81 128 84L121 66C111 62 102 64 93 68C75 75 61 84 48 83C34 83 24 73 24 58C24 42 34 31 48 31C60 31 69 37 75 46Z"/>
+    <path d="M65 76L95 24C100 15 111 15 116 25L150 87C153 93 149 99 143 99C139 99 136 97 134 93L105 41L90 67Z"/>
+  </g>
+  <text x="177" y="87" fill="#edf4e8" font-family="'Segoe UI',Arial,sans-serif" font-size="72" font-weight="600" letter-spacing="-2">OotleAccord</text>
+</svg>
