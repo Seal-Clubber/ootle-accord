@@ -10,6 +10,8 @@ import { fundingState, refreshEscrow, canApproveEscrow } from './lib/escrow-fund
 import { createAppUpdater } from './lib/app-updates.mjs';
 import { wireFundingCard } from './lib/funding-ui.mjs';
 import { createReturnClient } from './lib/escrow-returns.mjs';
+import { projectWork, shareReviewLink } from './lib/review-work.mjs';
+import { decodeTransactionResponse } from './lib/chain-codec.mjs';
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -23,7 +25,6 @@ try { returns = createReturnClient({ network }); } catch { /* Funding remains us
 if (network === 'mainnet') {
   $('#earlier-accords').hidden = true;
   $('#empty-accords').hidden = accords.length > 0;
-  $('#load-testnet-demo').hidden = accords.length === 0;
   $('#add-stage').hidden = true;
   $('#creator-address').placeholder = `${chain.walletPrefix}1…`;
   $('label[for="review-fee"]').textContent = `Maximum fee (${unit})`;
@@ -39,7 +40,12 @@ let ownReviewVote = null;
 let reviewAgreement = null;
 let stageCounter = 0;
 let reviewerCounter = 0;
-let submissionHash = null;
+let chosenWork = null;
+let bundledWork = null;
+let workRead = 0;
+let submittingWork = false;
+let approvingWork = false;
+const pendingWork = new Map();
 let feedbackTimer;
 let failedReviewRequestId = null;
 let activeActions = 0;
@@ -77,10 +83,12 @@ async function action(button, work, { reviewError = false } = {}) {
   }
   finally {
     activeActions -= 1;
-    if (button) button.disabled = button.id === 'approve-review' ? !reviewAgreement || !submissionHash || Boolean(approvalUnavailable()) : false;
+    if (button) button.disabled = false;
+    if (['approve-review', 'submit-work', 'check-work-submission'].includes(button?.id)) syncReviewState();
   }
 }
 
+const reviewRoute = () => location.hash.slice(1).split('?')[0];
 function showView(name, { focus = true } = {}) {
   const names = ['explore', 'create', 'review'];
   if (!names.includes(name)) name = 'explore';
@@ -91,15 +99,12 @@ function showView(name, { focus = true } = {}) {
     if (active) item.setAttribute('aria-current', 'page');
     else item.removeAttribute('aria-current');
   }
-  if (location.hash !== `#${name}`) history.replaceState(null, '', `#${name}`);
+  if (reviewRoute() !== name) history.replaceState(null, '', `#${name}`);
   if (focus) {
     $('#main').focus({ preventScroll: true });
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
 }
-$$('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
-window.addEventListener('hashchange', () => showView(location.hash.slice(1)));
-showView(location.hash.slice(1), { focus: false });
 
 function downloadJson(value, filename) {
   const url = URL.createObjectURL(new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json' }));
@@ -123,11 +128,16 @@ let activeAccord = accords[0];
 const accordCards = new Map();
 let reviewLoad = 0;
 function selectedFunding() { return accordCards.get(activeAccord?.agreementId)?.state; }
+function selectedWork() {
+  if (chosenWork) return chosenWork;
+  if ($('#project-link').value || $('#review-work').files.length) return null;
+  return bundledWork?.hash === selectedFunding()?.submissionHash ? bundledWork : null;
+}
 function approvalUnavailable() {
   const stage = reviewAgreement?.milestones[0];
   const index = reviewerIdentity ? stage?.reviewers.findIndex(r => r.publicKey === reviewerIdentity.publicKey) : null;
   return (ownReviewVote && ownReviewVote.agreementId === activeAccord?.agreementId && ownReviewVote.account === wallet.getState().account) ||
-    !canApproveEscrow(selectedFunding(), submissionHash, index);
+    !canApproveEscrow(selectedFunding(), selectedWork()?.hash, index);
 }
 function syncReviewState() {
   if (!reviewAgreement) return;
@@ -135,14 +145,36 @@ function syncReviewState() {
   const stage = reviewAgreement.milestones.find(s => s.id === $('#review-stage').value);
   const required = requiredApprovals(stage.reviewers.length, stage.approvalPercent);
   const amount = state.paid ? fromRawAmount(state.targetUnits) + ` ${unit} paid to the creator` : fromRawAmount(state.fundedUnits) + ' / ' + fromRawAmount(state.targetUnits) + ` ${unit} funded`;
-  const status = state.paid ? 'Payout completed.' : state.expired ? 'The funding and review deadline has passed.' : !state.fullyFunded
-    ? 'Approval opens after the remaining ' + fromRawAmount(state.remainingUnits) + ` ${unit} is funded. The community reviewer’s vote will be required.`
-    : state.approvals + ' of ' + required + ' approvals. ' + (state.requiredReviewerApproved ? 'The required community vote is recorded.' : 'Waiting for the required community vote.');
-  $('#review-output').textContent = amount + ' · ' + status;
-  $('#submit-work').closest('details').hidden = state.paid || state.expired || state.approvals > 0;
+  const status = state.paid ? 'Payout complete.' : state.expired ? 'Review closed.' : !state.fullyFunded ? 'Voting opens at full funding.'
+    : !state.submissionHash ? 'Waiting for work from the creator.' : `${state.approvals} of ${required} required approvals recorded.`;
+  $('#review-output').textContent = `${amount} · ${status}`;
+
+  const pending = pendingWork.get(activeAccord.agreementId);
+  if (pending && state.submissionHash === pending.hash) pendingWork.delete(activeAccord.agreementId);
+  const waiting = pendingWork.has(activeAccord.agreementId);
+  const work = selectedWork();
+  const matches = Boolean(work && state.submissionHash === work.hash);
+  const canSubmit = !state.paid && !state.expired && state.approvals === 0 && !matches;
+  const message = waiting ? 'Submitted in Sapient. Check for on-chain confirmation before sharing.'
+    : matches ? (work.url ? 'Link verified against the submission.' : 'File verified against the submission.')
+    : state.submissionHash ? (work ? 'This work differs from the registered submission.' : 'Open the review link or choose the file shared by the creator.')
+    : '';
+  $('#review-work-status').hidden = !message;
+  $('#review-work-status').textContent = message;
+  $('#submit-work').hidden = !canSubmit || waiting;
+  $('#submit-work').disabled = !work || submittingWork || Boolean(wallet.getState().requestId);
+  $('#submit-work').textContent = state.submissionHash ? 'Replace work in Sapient' : 'Submit work in Sapient';
+  $('#check-work-submission').hidden = !waiting;
+  $('#project-link').disabled = submittingWork || waiting;
+  $('#review-work').disabled = submittingWork || waiting;
+  $('#open-project').hidden = !matches || !work.url;
+  if (matches && work.url) $('#open-project').href = work.url;
+  else $('#open-project').removeAttribute('href');
+  $('#copy-review-link').hidden = !matches || !work.url;
+  $('#demo-work-details').hidden = !matches || work !== bundledWork;
   $('#review-fund').hidden = state.fullyFunded || state.expired || state.paid;
-  $('#review-fund').textContent = 'Fund this accord · ' + fromRawAmount(state.remainingUnits) + ` ${unit} remaining`;
-  $('#approve-review').disabled = !submissionHash || Boolean(approvalUnavailable());
+  $('#approve-review').hidden = !matches || !state.fullyFunded || state.expired || state.paid || state.approved;
+  $('#approve-review').disabled = approvingWork || Boolean(wallet.getState().requestId) || approvalUnavailable();
 }
 function setFundingPanel(card, open) {
   const button = card.node.querySelector('[data-ui="fund-accord"]');
@@ -199,7 +231,8 @@ for (const deployment of accords) {
     ? 'Contribution amounts, the remaining counter and reviewer votes are public. The deposit uses one-time keys and omits the donor base wallet address. Wallet preparation and transaction history can link activity. Return memos are encrypted to the wallet and require a private view grant.' + (network === 'esmeralda' ? ' Four reviewers are deployer-operated test wallets.' : '')
     : 'Earlier private-output escrow: encrypted transfer values, with contribution sizes inferable from public total changes. Transaction links and timing remain visible. Four reviewers are deployer-operated test wallets.';
   const state = { ...fundingState({ targetUnits: stage.targetUnits, fundedUnits: deployment.recordedFundingUnits, paid: deployment.recordedPaid ?? false, epoch: deployment.recordedEpoch, deadline: stage.refundEpoch }), approvals: deployment.recordedApprovals, votes: deployment.recordedVotes,
-    requiredReviewerApproved: deployment.recordedRequiredReviewerApproved || false, approved: deployment.recordedApproved ?? false, submissionHash: deployment.submissionHash };
+    requiredReviewerApproved: deployment.recordedRequiredReviewerApproved || false, approved: deployment.recordedApproved ?? false,
+    submissionHash: deployment.recordedSubmissionHash ?? deployment.submissionHash };
   const card = { deployment, node, state, live: null };
   accordCards.set(deployment.agreementId, card);
   renderAccordCard(card, state);
@@ -316,6 +349,7 @@ async function readReviewerIdentity() {
   reviewerIdentity = await wallet.getReviewerIdentity();
   $('#reviewer-wallet').value = reviewerIdentity.walletAddress;
   $('#reviewer-identity').hidden = false;
+  syncReviewState();
   return reviewerIdentity;
 }
 $('#reviewer-connect').addEventListener('click', event => action(event.currentTarget, async () => {
@@ -341,7 +375,26 @@ function renderReviewTerms() {
   $('#review-terms').replaceChildren(textElement('p', `${requiredApprovals(stage.reviewers.length, stage.approvalPercent)} of ${stage.reviewers.length} approvals required · ${stage.approvalPercent}%`), textElement('p', 'The community reviewer’s vote is required before the creator can release the ' + fromRawAmount(stage.targetUnits) + ` ${unit}.`), textElement('p', stage.title), textElement('p', stage.description, 'field-help'), textElement('p', `Review before chain epoch ${stage.refundEpoch}.`, 'field-help'), reviewers);
 }
 $('#review-stage').addEventListener('change', renderReviewTerms);
-async function loadAccord(deployment = activeAccord) {
+async function setProjectLink({ showError = false } = {}) {
+  const read = ++workRead;
+  const value = $('#project-link').value.trim();
+  chosenWork = null;
+  $('#review-work').value = '';
+  $('#project-link').setCustomValidity('');
+  syncReviewState();
+  if (!value) return;
+  try {
+    const work = await projectWork(value);
+    if (read !== workRead) return;
+    chosenWork = work;
+    syncReviewState();
+  } catch (error) {
+    if (read !== workRead) return;
+    $('#project-link').setCustomValidity(error.message);
+    if (showError) $('#project-link').reportValidity();
+  }
+}
+async function loadAccord(deployment = activeAccord, projectLink = '') {
   if (!deployment) throw new Error('No verified accord is available on this network yet.');
   const load = ++reviewLoad;
   $('#approve-review').disabled = true;
@@ -352,28 +405,50 @@ async function loadAccord(deployment = activeAccord) {
   if (id !== deployment.agreementId || (hasWork && hash !== deployment.submissionHash)) throw new Error('Accord identity or work fingerprint mismatch.');
   activeAccord = deployment;
   reviewAgreement = terms;
-  submissionHash = hash;
+  ++workRead;
+  chosenWork = null;
+  bundledWork = hash ? { hash } : null;
+  $('#project-link').value = projectLink;
+  $('#project-link').setCustomValidity('');
   $('#review-work').value = '';
-  $('#review-work-picker').hidden = false;
-  $('#review-work-picker').open = !hasWork;
-  $('#review-fee-settings').hidden = false;
+  $('#review-options').open = false;
+  $('#review-form').hidden = false;
   $('#review-stage').replaceChildren(...terms.milestones.map(s => new Option(s.title, s.id)));
   $('#review-stage-picker').hidden = terms.milestones.length === 1;
-  $('#work-fingerprint').textContent = hasWork ? 'Work fingerprint: ' + hash : 'Choose the file shared by the creator. The app checks its fingerprint against the escrow.';
   $('#demo-work-text').textContent = deployment.work ?? '';
-  $('#demo-work-details').hidden = !hasWork;
-  $('#demo-work-details').open = hasWork;
+  $('#demo-work-details').open = false;
   $('#review-heading').textContent = terms.title;
-  $('#load-testnet-demo').hidden = true;
-  $('#review-contract').textContent = deployment.component;
-  $('#review-agreement-id').textContent = deployment.agreementId;
-  $('#review-receipts').href = deployment.receiptsPath || './docs/private-escrow-testnet.md';
   $('#review-error').hidden = true;
   renderReviewTerms();
   syncReviewState();
+  if (projectLink) await setProjectLink({ showError: true });
+  void refreshReview(deployment).catch(() => { /* Keep the last known state if the indexer is unavailable. */ });
   return true;
 }
-$('#load-testnet-demo').addEventListener('click', event => action(event.currentTarget, () => loadAccord()));
+function openReviewRoute() {
+  const params = new URLSearchParams(location.hash.slice('#review'.length));
+  const id = params.get('accord');
+  const deployment = id ? accords.find(item => item.agreementId === id && !item.archivedOnReset) : activeAccord;
+  if (!deployment) {
+    ++reviewLoad;
+    ++workRead;
+    reviewAgreement = null;
+    $('#review-form').hidden = true;
+    $('#review-heading').textContent = 'This accord is unavailable on this network.';
+    return;
+  }
+  void action(null, () => loadAccord(deployment, params.get('work') || ''));
+}
+$$('[data-view]').forEach(button => button.addEventListener('click', () => {
+  showView(button.dataset.view);
+  if (button.dataset.view === 'review' && !reviewAgreement) openReviewRoute();
+}));
+window.addEventListener('hashchange', () => {
+  showView(reviewRoute());
+  if (reviewRoute() === 'review') openReviewRoute();
+});
+showView(reviewRoute(), { focus: false });
+if (reviewRoute() === 'review') openReviewRoute();
 $('#review-fund').addEventListener('click', () => {
   const card = accordCards.get(activeAccord?.agreementId);
   if (!card) return;
@@ -386,40 +461,100 @@ $('#download-demo-work').addEventListener('click', () => {
   const link = document.createElement('a'); link.href = url; link.download = 'ootleaccord-demo-work.txt'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-$('#review-form').addEventListener('submit', event => {
-  event.preventDefault();
-  action(event.submitter, async () => {
+$('#review-form').addEventListener('submit', event => event.preventDefault());
+$('#approve-review').addEventListener('click', event => {
+  action(event.currentTarget, async () => {
     if (!reviewAgreement) throw new Error('Open an accord first.');
-    if (!submissionHash) throw new Error('Choose the work file that the creator submitted.');
+    const workHash = selectedWork()?.hash;
+    if (!workHash) throw new Error('Open the project link or file shared by the creator.');
     const deployment = activeAccord;
     const agreement = reviewAgreement;
     const stageId = $('#review-stage').value;
-    const workHash = submissionHash;
     if (approvalUnavailable()) throw new Error('This accord is not ready for approval. Refresh its balance and wait for full funding.');
-    if (!wallet.getState().account) await wallet.connect();
-    if (activeAccord !== deployment) throw new Error('The selected accord changed. Review its work before approving.');
-    const result = await wallet.approveMilestone({ agreement, deployment, stageId, submissionHash: workHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
-    ownReviewVote = { agreementId: deployment.agreementId, account: wallet.getState().account };
-    walletSubmission(result, $('#review-output'));
-    try { const fresh = await refreshEscrow(deployment); renderAccordCard(accordCards.get(deployment.agreementId), fresh, true); }
-    catch { /* The successful vote stays disabled even while the public checkpoint catches up. */ }
+    approvingWork = true;
+    try {
+      if (!wallet.getState().account) await wallet.connect();
+      if (activeAccord !== deployment || selectedWork()?.hash !== workHash) throw new Error('The selected work changed. Review it before approving.');
+      const result = await wallet.approveMilestone({ agreement, deployment, stageId, submissionHash: workHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
+      ownReviewVote = { agreementId: deployment.agreementId, account: wallet.getState().account };
+      walletSubmission(result, $('#review-output'));
+      try { await refreshReview(deployment); }
+      catch { /* The successful vote stays disabled even while the public checkpoint catches up. */ }
+    } finally { approvingWork = false; }
   }, { reviewError: true });
 });
 
+$('#project-link').addEventListener('input', () => void setProjectLink());
+$('#project-link').addEventListener('blur', event => event.currentTarget.reportValidity());
 $('#review-work').addEventListener('change', event => action(null, async () => {
-  submissionHash = null; $('#work-fingerprint').textContent = '';
-  $('#approve-review').disabled = true;
-  $('#demo-work-details').hidden = true;
+  const read = ++workRead;
+  chosenWork = null;
+  $('#project-link').value = '';
+  $('#project-link').setCustomValidity('');
+  syncReviewState();
   const file = event.target.files[0];
-  if (!file || file.size > 10 * 1024 * 1024) throw new Error('Choose a work file up to 10 MB.');
-  submissionHash = await sha256Hex(await file.arrayBuffer());
-  $('#work-fingerprint').textContent = 'Work fingerprint: ' + submissionHash + '. The file stays on this device.';
-  $('#approve-review').disabled = !reviewAgreement || Boolean(approvalUnavailable());
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) throw new Error('Choose a work file up to 10 MB.');
+  const hash = await sha256Hex(await file.arrayBuffer());
+  if (read !== workRead) return;
+  chosenWork = { hash };
+  syncReviewState();
 }));
+
+$('#copy-review-link').addEventListener('click', event => action(event.currentTarget, async () => {
+  const work = selectedWork();
+  if (!work?.url || work.hash !== selectedFunding()?.submissionHash) throw new Error('Confirm the project submission before sharing.');
+  await navigator.clipboard.writeText(shareReviewLink(location.href, network, activeAccord.agreementId, work.url));
+  notify('Review link copied. Send it to your reviewers.');
+}));
+
+async function refreshReview(deployment) {
+  const state = await refreshEscrow(deployment);
+  renderAccordCard(accordCards.get(deployment.agreementId), state, true);
+  return state;
+}
 $('#submit-work').addEventListener('click', event => action(event.currentTarget, async () => {
-  if (!reviewAgreement || !submissionHash) throw new Error('Open an accord and choose its work file first.');
-  const result = await wallet.submitWork({ agreement: reviewAgreement, stageId: $('#review-stage').value, submissionHash, maxFee: toRawAmount($('#review-fee').value.trim()) });
-  walletSubmission(result, $('#review-output'));
+  const work = selectedWork();
+  const deployment = activeAccord;
+  const agreement = reviewAgreement;
+  if (!agreement || !work) throw new Error('Enter the project link first.');
+  if (submittingWork || pendingWork.has(deployment.agreementId)) return;
+  const stageId = $('#review-stage').value;
+  const maxFee = toRawAmount($('#review-fee').value.trim());
+  submittingWork = true;
+  syncReviewState();
+  try {
+    const live = await refreshReview(deployment);
+    if (live.submissionHash === work.hash) return;
+    if (live.paid || live.expired || live.approvals > 0) throw new Error('Work submission is closed for this accord.');
+    if (!wallet.getState().account) await wallet.connect();
+    if (activeAccord !== deployment || selectedWork()?.hash !== work.hash) throw new Error('The selected work changed. Open the accord and try again.');
+    const result = await wallet.submitWork({ agreement, stageId, submissionHash: work.hash, maxFee });
+    pendingWork.set(deployment.agreementId, { id: result.transactionId, hash: work.hash });
+    try { await refreshReview(deployment); } catch { /* Keep the pending submission available to check. */ }
+  } finally { submittingWork = false; }
+}, { reviewError: true }));
+
+$('#check-work-submission').addEventListener('click', event => action(event.currentTarget, async () => {
+  const deployment = activeAccord;
+  const pending = pendingWork.get(deployment.agreementId);
+  if (!pending) return;
+  const state = await refreshReview(deployment);
+  if (state.submissionHash === pending.hash) return;
+  if (!/^[a-f0-9]{64}$/.test(pending.id)) throw new Error('Check the submitted transaction in Sapient.');
+  const response = await fetch(`${chain.indexer}/transactions/${pending.id}/result`, {
+    credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store', signal: AbortSignal.timeout(12000),
+  });
+  if (response.ok) {
+    const result = await decodeTransactionResponse(await response.json());
+    const final = result.result?.Finalized;
+    const diff = final?.execution_result?.finalize?.result;
+    if (final?.final_decision && (final.final_decision !== 'Commit' || diff?.AcceptFeeRejectRest || diff?.Reject)) {
+      pendingWork.delete(deployment.agreementId);
+      throw new Error('The transaction did not register the work. Check the result in Sapient before retrying.');
+    }
+  }
+  notify('The submission is still waiting for confirmation.');
 }, { reviewError: true }));
 
 $('#copy-review-error').addEventListener('click', event => action(event.currentTarget, async () => {
@@ -480,6 +615,7 @@ wallet.subscribe(state => {
   if (state.requestId) lines.push(`Existing request: ${state.requestId}`);
   if (state.error) lines.push(state.error);
   $('#wallet-info').textContent = lines.join('\n');
+  syncReviewState();
 });
 
 // Reconciliation is deliberately manual; forgetting an ID does not cancel its wallet request.
@@ -530,7 +666,7 @@ updater = createAppUpdater({
   currentVersion: $('meta[name="ootleaccord-build"]')?.content,
   getUrl: () => location.href,
   canReload: manual => updateSafe() && (manual || (location.hash === '#explore' && !agreementDirty &&
-    !$('#review-work').files.length &&
+    !$('#project-link').value && !$('#review-work').files.length &&
     !$$('[data-ui="funding-panel"]').some(panel => !panel.hidden) &&
     !$$('[data-ui="returns-panel"]').some(panel => panel.open) && !returns?.getPending() &&
     !document.activeElement?.matches('input,textarea,select,[contenteditable]'))),

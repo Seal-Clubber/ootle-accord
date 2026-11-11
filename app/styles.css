@@ -99,8 +99,6 @@ details p { margin-top:12px; }
 #review-terms li { padding:8px 0; overflow-wrap:anywhere; }
 #review-terms li code { color:var(--muted); }
 #review-fee { max-width:160px; }
-#review-form > .button-primary { margin-top:14px; }
-#review-fund { margin-bottom:12px; }
 dialog { width:calc(100% - 32px); max-width:500px; border:1px solid var(--line); border-radius:12px; padding:26px; background:var(--surface); color:var(--text); }
 dialog::backdrop { background:#0009; }
 .wallet-info { white-space:pre-wrap; overflow-wrap:anywhere; padding:14px; background:var(--paper); border-radius:8px; font-size:12px; margin:18px 0; }

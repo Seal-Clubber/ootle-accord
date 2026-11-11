@@ -71,6 +71,7 @@ export const MAINNET_ACCORDS = deepFreeze([
     "receiptsPath": "./docs/mainnet-community-accord.md",
     "payoutReceiptCommitment": "8afa8748da38e1a4359cb051652eb83e79334adda635c19a06d68c54d8af447d",
     "recordedFundingUnits": "0",
+    "recordedSubmissionHash": "",
     "recordedVotes": [
       false,
       false,
