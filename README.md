@@ -4,7 +4,9 @@ Community milestone funding on Tari Ootle, with stock Sapient integration.
 
 [Open OotleAccord on Mainnet](https://seal-clubber.github.io/ootle-accord/#explore) · [Esmeralda testnet](https://seal-clubber.github.io/ootle-accord/?network=esmeralda#explore)
 
-The `SapientEscrow` template was published to **Ootle Mainnet** on **11 November 2026 at 05:26:28 UTC**. The mainnet app shows the template and its publication receipt. No mainnet accord is open for funding yet. [Published template](https://indexer-a.ootle.tari.com/templates/151ae04f4b80eda9a45d37f0ae8c2c8b005eb6df6715c2a9eb14df68b6e4bbf3) · [Transaction receipt](https://indexer-a.ootle.tari.com/transactions/a9e8396052476dcad9d5e47fb02213a1e3eefd4cb77a919ffcbd6dd9095cb60d/result) · [WASM and build manifest](artifacts/mainnet)
+The `SapientEscrow` template was published to **Ootle Mainnet** on **11 November 2026 at 05:26:28 UTC**. [Published template](https://indexer-a.ootle.tari.com/templates/151ae04f4b80eda9a45d37f0ae8c2c8b005eb6df6715c2a9eb14df68b6e4bbf3) · [Transaction receipt](https://indexer-a.ootle.tari.com/transactions/a9e8396052476dcad9d5e47fb02213a1e3eefd4cb77a919ffcbd6dd9095cb60d/result) · [WASM and build manifest](artifacts/mainnet)
+
+The mainnet **Community accord** has a **10 TARI goal** and needs **three of five approvals**, including the creator's vote. The app reads the current funding and vote counts from the chain. [Mainnet accord and creation receipt](docs/mainnet-community-accord.md)
 
 The Esmeralda demo was deployed on **7 November 2026** for **Ootle 0.49.1**. Its recorded checkpoint shows **2 of 10 tTARI funded**. It requires **three of five approvals including the mandatory community reviewer**. Four reviewers share a test operator. [Testnet deployment and privacy limits](docs/current-network-deployment.md)
 
@@ -14,11 +16,11 @@ Contribution amounts and the exact remaining counter are public. The deposit use
 
 ## Use it
 
-On Esmeralda, open **Community accord**. Its verified remaining balance refreshes automatically.
+Open **Community accord** on the network you want to use. Its verified remaining balance refreshes automatically.
 
 1. Open the accord, then **Fund this accord**.
 2. Choose an amount or **Max**, then **Check coins in Sapient**. This explicitly requests a private view grant to read coin amounts and memos; they stay in tab memory. Seeds, view secrets and wallet spending keys stay in Sapient.
-3. If necessary, approve **Prepare exact coin**: a private transfer to yourself within Sapient. Then approve **Fund in Sapient** separately. Each transaction has a private fee limit of 0.1 tTARI. The app never redeems a larger coin to reveal the rest of your balance.
+3. If necessary, approve **Prepare exact coin**, a private transfer to yourself within Sapient. Then approve **Fund in Sapient** separately. Each transaction has a private fee limit of 0.1 TARI on Mainnet or 0.1 tTARI on Esmeralda. The app redeems the exact contribution coin.
 4. After full funding, reviewers can approve the submitted work. Payout needs the percentage quorum and the mandatory reviewer.
 5. **My refunds & payout → Find my memos in Sapient** recovers return metadata from encrypted, zero-value native outputs. Eligible unpaid contributions become refundable after the deadline to fixed private wallet destinations. A separate organizer fee reserve pays return fees.
 

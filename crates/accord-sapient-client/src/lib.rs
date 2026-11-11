@@ -288,7 +288,13 @@ pub fn constructor_args(note_json: &str, config_json: &str) -> Result<String, Js
     let agreement = c["agreementId"]
         .as_str()
         .ok_or_else(|| JsError::new("Missing agreement"))?;
-    let memo = memo_statement(&note, agreement, "payout", creator);
+    // A sponsor can authorize the receipt's one micro-TARI round trip. The
+    // encrypted memo and fixed payout still belong to the creator in `note`.
+    let receipt_receiver = c.get("receiptReceiver").map(read_key).transpose()?.unwrap_or(creator);
+    if receipt_receiver.is_zero() || RistrettoPublicKey::convert_from_byte_type(&receipt_receiver).is_err() {
+        return Err(JsError::new("Invalid receipt receiver key"));
+    }
+    let memo = memo_statement(&note, agreement, "payout", receipt_receiver);
     Ok(serde_json::json!([{"Workspace":{"id":0,"offset":null}},literal(&agreement),literal(&c["stageId"].as_str().unwrap_or("delivery")),literal(&creator),literal(&key),literal(&nonce),literal(&reviewers),literal(&(c["approvalPercent"].as_u64().unwrap_or(60) as u8)),literal(&(c["requiredReviewer"].as_u64().unwrap_or(2) as u32)),literal(&target),literal(&deadline),literal(&memo)]).to_string())
 }
 #[wasm_bindgen(js_name=actionTransaction)]

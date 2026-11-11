@@ -3,8 +3,8 @@ import init, { makeReturnNote, publicReturnBinding, constructorArgs } from '../a
 import { QUORUM_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA, validateAgreement, agreementId } from '../app/lib/accord.mjs';
 import { reviewerKeyFromWallet } from '../app/lib/wallet-address.mjs';
 
-const [file, requiredWallet, ...extra] = process.argv.slice(2);
-if (!file || !requiredWallet || extra.length) throw new Error('Usage: node scripts/prepare-mainnet.mjs <public-draft.json> <required-reviewer-mainnet-address>');
+const [file, requiredWallet, sponsorWallet, ...extra] = process.argv.slice(2);
+if (!file || !requiredWallet || extra.length) throw new Error('Usage: node scripts/prepare-mainnet.mjs <public-draft.json> <required-reviewer-mainnet-address> [sponsor-mainnet-address]');
 const draft = validateAgreement(JSON.parse(await readFile(file, 'utf8')));
 if (draft.network !== 'mainnet' || draft.schema !== QUORUM_AGREEMENT_SCHEMA || draft.milestones.length !== 1) {
   throw new Error('Save a Mainnet draft with exactly one milestone.');
@@ -25,6 +25,7 @@ const agreement = validateAgreement({ ...draft, schema: SAPIENT_ESCROW_SCHEMA, m
 const id = await agreementId(agreement);
 const config = {
   network: agreement.network, creator: reviewerKeyFromWallet(agreement.creatorWalletAddress, agreement.network),
+  ...(sponsorWallet ? { receiptReceiver: reviewerKeyFromWallet(sponsorWallet, agreement.network) } : {}),
   reviewers: stage.reviewers.map(reviewer => reviewer.publicKey), requiredReviewer,
   target: stage.targetUnits, deadline: stage.refundEpoch, approvalPercent: stage.approvalPercent,
   agreementId: id, stageId: stage.id,
