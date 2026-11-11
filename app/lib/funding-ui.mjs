@@ -7,32 +7,46 @@ const FEE = '100000';
 const working = state => ['connecting','awaiting-approval','submitting','confirming','restoring'].includes(state.status);
 
 /** Private coin summaries and decrypted receipts live only in this closure. */
-export function wireFundingCard({ card, wallet, returns, refresh, notify, activity }) {
+export function wireFundingCard({ card, wallet, returns, refresh, notify, activity, openWallet }) {
   const { node, deployment } = card;
   const network = deployment.agreement.network;
   const unit = networkConfig(network).unit;
   const ui = name => node.querySelector(`[data-ui="${name}"]`);
   const stock = deployment.agreement.schema === SAPIENT_ESCROW_SCHEMA;
+  const actions = Object.fromEntries(['check', 'prepare', 'pay', 'confirm', 'again', 'recover'].map(name => [name, ui('funding-' + name)]));
   let quote = null, busy = false, account = wallet.getState().account;
+  let next = 'check', balanceChecked = false, preparationStatus = 'If needed', preparedAmount = null, payment = null;
   let receipts = [];
   const message = (text, error = false, area = 'funding-status') => {
     ui(area).textContent = text; ui(area).classList.toggle('error-text', error);
   };
   const amount = () => contributionAmount(ui('contribution-amount').value.trim(), card.state, network);
   const pendingForCard = () => returns?.getPending()?.component === deployment.component;
+  function step(name, status, current = false) {
+    const item = ui('funding-step-' + name);
+    const label = item.querySelector('[data-step-status]');
+    label.textContent = status;
+    label.hidden = !status;
+    if (current) item.setAttribute('aria-current', 'step');
+    else item.removeAttribute('aria-current');
+  }
   function update() {
     const state = card.state, session = wallet.getState();
     const closed = deployment.archivedOnReset || state.remainingUnits === '0' || state.paid || state.expired;
     const blocked = busy || working(session) || Boolean(session.requestId);
-    ui('funding-check').hidden = !stock;
-    ui('funding-check').disabled = closed || blocked;
-    ui('funding-max').disabled = closed || busy;
-    ui('contribution-amount').disabled = closed || busy;
-    let valid = false;
-    try { valid = quote?.amount === amount() && quote.expectedTotal === state.fundedUnits && quote.account === session.account; } catch { /* incomplete input */ }
-    ui('funding-pay').disabled = closed || blocked || !valid;
-    ui('funding-pay').hidden = !stock;
-    ui('funding-prepare').disabled = closed || blocked;
+    const active = session.requestId && !busy ? 'recover' : next;
+    const finishing = next === 'confirm' || next === 'again';
+    ui('funding-amount-fields').hidden = finishing;
+    ui('funding-intro').hidden = finishing;
+    ui('funding-max').disabled = closed || blocked;
+    ui('contribution-amount').disabled = closed || blocked;
+    for (const [name, button] of Object.entries(actions)) {
+      button.hidden = !stock || active !== name || (closed && name !== 'confirm' && name !== 'recover');
+      button.disabled = name === 'recover' ? busy : blocked;
+    }
+    step('access', balanceChecked ? 'Done' : '', next === 'check' && !balanceChecked);
+    step('prepare', preparationStatus, next === 'prepare');
+    step('deposit', next === 'again' ? 'Confirmed' : next === 'confirm' ? 'Submitted' : '', next === 'pay' || next === 'confirm');
     ui('returns-panel').hidden = !stock || deployment.archivedOnReset;
     ui('returns-find').disabled = blocked;
     ui('returns-check').hidden = !pendingForCard();
@@ -41,53 +55,114 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
   }
   async function run(work, area = 'funding-status') {
     if (busy) return;
+    const focused = document.activeElement;
     busy = true; activity(1); update();
     try { await work(); }
     catch (error) { message(error?.message || 'This action could not be completed.', true, area); }
-    finally { busy = false; activity(-1); update(); }
+    finally {
+      busy = false; activity(-1); update();
+      if (Object.values(actions).includes(focused) && (!document.activeElement || document.activeElement === document.body || document.activeElement === focused)) {
+        Object.values(actions).find(button => !button.hidden && !button.disabled)?.focus();
+      }
+    }
   }
   async function connected() { if (!wallet.getState().account) await wallet.connect(); }
-  function clearQuote() { quote = null; ui('funding-prepare').hidden = true; update(); }
+  function resetPlan(text = '') {
+    quote = null;
+    balanceChecked = false;
+    preparationStatus = 'If needed';
+    next = 'check';
+    message(text);
+    update();
+  }
   async function inspect() {
-    amount(); clearQuote(); await refresh();
+    amount();
+    quote = null;
+    await refresh();
     const value = amount();
+    if (!wallet.getState().account) message('Connect Sapient to continue.');
     await connected();
-    message('Checking private coins in Sapient…');
+    message('Allow Sapient to share your private coin amounts with this tab if prompted.');
     const coins = await wallet.inspectFundingCoins();
     const selected = selectFundingCoins(coins, value, FEE);
+    const exact = coins.some(coin => coin.amount === value);
+    const display = fromRawAmount(value) + ` ${unit}`;
+    balanceChecked = true;
+    preparationStatus = preparedAmount === value ? 'Done' : exact ? 'Already prepared' : 'If needed';
     if (!selected.source) {
-      ui('funding-prepare').hidden = coins.some(c => BigInt(c.amount) > BigInt(value) + BigInt(FEE)) ? false : true;
-      ui('funding-prepare').textContent = 'Prepare ' + fromRawAmount(value) + ` ${unit} in Sapient`;
-      message(selected.reason); return;
+      const canPrepare = !exact && coins.some(coin => BigInt(coin.amount) > BigInt(value) + BigInt(FEE));
+      next = canPrepare ? 'prepare' : 'check';
+      if (canPrepare) preparationStatus = '';
+      actions.prepare.textContent = `Prepare ${display} in Sapient`;
+      message(canPrepare ? `Approve a private transfer of ${display} to your own wallet to prepare the deposit.` : exact
+        ? `Sapient needs a separate private coin larger than 0.1 ${unit} for the deposit fee. Check again once it’s available.`
+        : `Sapient needs a private coin large enough to prepare ${display} and cover fees. Check again once it’s available.`);
+      return;
     }
     quote = { ...selected, amount: value, expectedTotal: card.state.fundedUnits, account: wallet.getState().account };
-    message('Ready to fund ' + fromRawAmount(value) + ` ${unit}. Sapient will ask you to approve the deposit.`);
+    next = 'pay';
+    actions.pay.textContent = `Fund ${display} in Sapient`;
+    message('Your deposit is ready. The contribution amount will be public.');
+  }
+  function confirmPayment() {
+    if (next !== 'confirm' || !card.live?.receiptCommitments?.includes(payment.receiptCommitment)) return false;
+    next = 'again';
+    const display = fromRawAmount(payment.amount) + ` ${unit}`;
+    message(`Your ${display} contribution is confirmed. Find your encrypted refund memo in Sapient.`);
+    if (ui('funding-panel').hidden || node.closest('[hidden]')) notify(`Funded ${display}.`);
+    return true;
+  }
+  async function checkPayment() {
+    message('Deposit submitted. Checking the escrow…');
+    try { await refresh(); } catch { /* Indexing can lag. Keep this confirmation step available. */ }
+    if (next === 'confirm' && !confirmPayment()) {
+      message(`Waiting for confirmation. Check again here or look up the transaction in Sapient. ${payment.transactionId}`);
+    }
   }
   ui('funding-check').addEventListener('click', () => run(inspect));
-  ui('contribution-amount').addEventListener('input', () => { clearQuote(); message('Check coins after choosing your amount.'); });
-  ui('funding-max').addEventListener('click', () => { ui('contribution-amount').value = fromRawAmount(card.state.remainingUnits); clearQuote(); message('Check coins to fund the remaining ' + fromRawAmount(card.state.remainingUnits) + ` ${unit}.`); });
+  ui('contribution-amount').addEventListener('input', () => resetPlan());
+  ui('funding-max').addEventListener('click', () => { ui('contribution-amount').value = fromRawAmount(card.state.remainingUnits); resetPlan(); });
   ui('funding-prepare').addEventListener('click', () => run(async () => {
-    const value = amount(); clearQuote(); await connected();
-    message('Approve the private transfer to yourself in Sapient. This prepares the exact contribution; it does not fund the accord yet.');
+    const value = amount();
+    await refresh();
+    if (value !== amount()) throw new Error('Check the contribution amount again.');
+    await connected();
+    message('Approve the private transfer to your own wallet in Sapient.');
     const result = await wallet.prepareFundingCoin({ amount: value, maxFee: FEE });
-    if (!result.registered) { message('Sapient submitted the preparation. Scan incoming payments in Sapient, then check coins here. Transaction: ' + result.transactionId); return; }
+    preparedAmount = value;
+    preparationStatus = 'Done';
+    next = 'check';
+    if (!result.registered) { message('Preparation submitted. Scan incoming payments in Sapient, then check your balance here.'); return; }
     await inspect();
   }));
   ui('funding-pay').addEventListener('click', () => run(async () => {
     const approved = quote;
-    if (!approved || approved.amount !== amount() || approved.account !== wallet.getState().account) throw new Error('Check your coins and contribution again before paying.');
-    clearQuote();
-    message('Approve the contribution in Sapient. The amount is public; the deposit uses one-time keys.');
-    const result = await wallet.fundEscrow({ deployment, amount: approved.amount, expectedTotal: approved.expectedTotal,
-      sourceCommitment: approved.source.commitment, feeCommitment: approved.fee.commitment, maxFee: FEE });
-    message('Sapient submitted the contribution. Checking the escrow…');
+    if (!approved || approved.amount !== amount() || approved.expectedTotal !== card.state.fundedUnits || approved.account !== wallet.getState().account) {
+      resetPlan('Check your balance again before funding.');
+      return;
+    }
+    quote = null;
+    message('Approve the final deposit in Sapient.');
     try {
-      await refresh();
-      if (!card.live.receiptCommitments?.includes(result.receiptCommitment)) throw new Error('not yet indexed');
-      message('Contribution confirmed. Your encrypted refund memo is recoverable in Sapient.');
-      notify('Funded ' + fromRawAmount(approved.amount) + ` ${unit}. The escrow balance is confirmed.`);
-    } catch { message('Sapient reports submission: ' + result.transactionId + '. Confirmation is still pending. Refresh the balance; do not submit this contribution again.'); }
+      const result = await wallet.fundEscrow({ deployment, amount: approved.amount, expectedTotal: approved.expectedTotal,
+        sourceCommitment: approved.source.commitment, feeCommitment: approved.fee.commitment, maxFee: FEE });
+      payment = { ...result, amount: approved.amount };
+      next = 'confirm';
+    } catch (error) {
+      next = 'check';
+      throw error;
+    }
+    await checkPayment();
   }));
+  actions.confirm.addEventListener('click', () => run(checkPayment));
+  actions.again.addEventListener('click', () => {
+    payment = null;
+    preparedAmount = null;
+    ui('contribution-amount').value = '';
+    resetPlan();
+    ui('contribution-amount').focus();
+  });
+  actions.recover.addEventListener('click', openWallet);
   async function returnResult(result) {
     if (result.status !== 'committed') { message('Return submitted. Check its status before trying again. Transaction: ' + result.id, false, 'returns-status'); return; }
     await refresh();
@@ -129,14 +204,19 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
   }, 'returns-status'));
   const unsubscribe = wallet.subscribe(session => {
     if (session.account !== account) {
-      account = session.account; quote = null; receipts = []; ui('returns-list').replaceChildren(); ui('funding-prepare').hidden = true;
-      message(''); message('', false, 'returns-status');
+      account = session.account;
+      preparedAmount = null;
+      receipts = [];
+      ui('returns-list').replaceChildren();
+      if (!payment) resetPlan();
+      message('', false, 'returns-status');
     }
     update();
   });
   return Object.freeze({
     render() {
-      if (quote && quote.expectedTotal !== card.state.fundedUnits) { clearQuote(); message('The remaining amount changed. Check your contribution again.'); }
+      if (quote && quote.expectedTotal !== card.state.fundedUnits) resetPlan('The remaining amount changed. Check your contribution again.');
+      confirmPayment();
       ui('contribution-amount').max = fromRawAmount(card.state.remainingUnits);
       showReturns(); update();
     },

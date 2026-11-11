@@ -27,11 +27,9 @@ if (network === 'mainnet') {
   $('#add-stage').hidden = true;
   $('#creator-address').placeholder = `${chain.walletPrefix}1…`;
   $('label[for="review-fee"]').textContent = `Maximum fee (${unit})`;
-  $('#wallet-dialog > p').textContent = 'Connect Sapient on Ootle Mainnet to use your wallet.';
 } else {
-  $('.network').textContent = 'Esmeralda';
-  $('.app-status').textContent = 'Esmeralda testnet · On-chain escrow · Public contribution amounts';
-  $('#view-explore .section-heading p').textContent = 'Milestone agreements on Esmeralda.';
+  $('.network').textContent = 'Esmeralda testnet';
+  $('#empty-accords').hidden = true;
   $('#mainnet-template').hidden = true;
   $('#switch-network').href = './?network=mainnet#explore';
   $('#switch-network').textContent = 'Open Ootle Mainnet';
@@ -146,6 +144,15 @@ function syncReviewState() {
   $('#review-fund').textContent = 'Fund this accord · ' + fromRawAmount(state.remainingUnits) + ` ${unit} remaining`;
   $('#approve-review').disabled = !submissionHash || Boolean(approvalUnavailable());
 }
+function setFundingPanel(card, open) {
+  const button = card.node.querySelector('[data-ui="fund-accord"]');
+  const panel = card.node.querySelector('[data-ui="funding-panel"]');
+  const closed = card.state.remainingUnits === '0' || card.state.expired || card.state.paid;
+  panel.hidden = !open;
+  button.disabled = !open && (closed || card.deployment.archivedOnReset);
+  button.setAttribute('aria-expanded', String(open));
+  button.textContent = open ? 'Close funding' : card.deployment.archivedOnReset ? 'Archived' : closed ? 'Funding closed' : 'Fund this accord';
+}
 function renderAccordCard(card, state, live = false) {
   const { deployment, node } = card;
   if (live && card.live && (state.version < card.live.version || BigInt(state.epoch) < BigInt(card.live.epoch))) throw new Error('Indexer returned an older checkpoint. Try again later.');
@@ -154,20 +161,17 @@ function renderAccordCard(card, state, live = false) {
   const ui = name => node.querySelector('[data-ui="' + name + '"]');
   const stage = deployment.agreement.milestones[0];
   const required = requiredApprovals(stage.reviewers.length, stage.approvalPercent);
-  ui('funded-label').textContent = state.paid ? 'Paid to creator' : 'Locked in escrow';
+  ui('funded-label').textContent = state.paid ? 'Paid to creator' : 'Funded';
   ui('funded-amount').textContent = state.paid ? fromRawAmount(state.targetUnits) + ` ${unit}` : fromRawAmount(state.fundedUnits) + ' / ' + fromRawAmount(state.targetUnits) + ` ${unit}`;
   ui('remaining-amount').textContent = fromRawAmount(state.remainingUnits) + ` ${unit}`;
   ui('funding-progress').value = state.paid ? 100 : Number(BigInt(state.fundedUnits) * 10000n / BigInt(state.targetUnits)) / 100;
-  const closed = state.remainingUnits === '0' || state.expired || state.paid;
-  ui('fund-accord').disabled = closed;
-  ui('fund-accord').textContent = state.paid ? 'Paid out' : state.fullyFunded ? 'Fully funded' : closed ? 'Funding closed' : 'Fund this accord';
-  ui('funding-availability').hidden = closed;
+  setFundingPanel(card, !ui('funding-panel').hidden);
   const minimum = state.minimumUnits && BigInt(state.minimumUnits) < BigInt(state.remainingUnits) ? ` Minimum ${fromRawAmount(state.minimumUnits)} ${unit}.` : '';
   ui('contribution-limit').textContent = `Maximum ${fromRawAmount(state.remainingUnits)} ${unit}.${minimum}`;
-  if (closed) { ui('funding-panel').hidden = true; ui('fund-accord').setAttribute('aria-expanded', 'false'); }
-  ui('funding-label').textContent = state.paid ? 'PAID' : state.expired ? 'FUNDING CLOSED' : state.fullyFunded ? 'FULLY FUNDED' : 'FUNDING OPEN';
-  ui('funding-note').textContent = state.paid ? 'Payout completed.' : state.expired ? 'The deadline has passed. Unpaid pledges are eligible for private refunds.' : state.fullyFunded ? 'Goal reached. Further funding is blocked by the escrow.' : fromRawAmount(state.remainingUnits) + ` ${unit} remaining. Approval opens once the goal is fully funded; the community reviewer is required.`;
-  ui('explore-approvals').textContent = state.approvals + ' of ' + required + ' required';
+  ui('funding-label').textContent = state.paid ? 'Paid out' : state.expired ? 'Funding closed' : state.fullyFunded ? 'Fully funded' : 'Funding open';
+  ui('funding-note').textContent = state.paid ? '' : state.expired ? 'Unpaid contributions can be refunded.' : state.fullyFunded
+    ? `${state.approvals} of ${required} required approvals recorded.` : `Review opens at full funding. ${required} of ${stage.reviewers.length} reviewers must approve.`;
+  ui('explore-approvals').textContent = `${stage.approvalPercent}% quorum. ${state.approvals} of ${required} required votes recorded. The community reviewer’s vote is required.`;
   ui('explore-open-accord').textContent = state.fullyFunded ? 'Review work' : 'View accord';
   ui('explore-checkpoint').textContent = live
     ? `Refreshed from the ${chain.name} indexer · epoch ` + state.epoch + ' · ' + new Date(state.checkedAt).toLocaleTimeString() + '.'
@@ -182,25 +186,18 @@ for (const deployment of accords) {
   ui('deployed-title').textContent = deployment.agreement.title;
   ui('deployed-title').id = 'accord-title-' + deployment.agreementId.slice(0,12);
   node.setAttribute('aria-labelledby', ui('deployed-title').id);
-  ui('explore-reviewer-count').textContent = String(stage.reviewers.length);
-  ui('explore-threshold').textContent = stage.approvalPercent + '% · ' + requiredApprovals(stage.reviewers.length, stage.approvalPercent) + ' of ' + stage.reviewers.length;
   ui('explore-component').textContent = deployment.component;
   ui('receipts').href = deployment.receiptsPath || './docs/private-escrow-testnet.md';
   ui('contribution-amount').id = 'contribute-' + deployment.agreementId.slice(0,12);
   ui('contribution-label').htmlFor = ui('contribution-amount').id;
   ui('contribution-label').textContent = `Contribution (${unit})`;
-  ui('funding-fee').textContent = `Private fee up to 0.1 ${unit} per transaction. If needed, prepare an exact coin in Sapient, then approve the deposit separately.`;
+  ui('funding-fee').textContent = `Preparation and deposit each use a private fee of up to 0.1 ${unit}.`;
   ui('funding-panel').id = 'funding-' + deployment.agreementId.slice(0,12);
   ui('fund-accord').setAttribute('aria-controls', ui('funding-panel').id);
   const stock = deployment.agreement.schema === SAPIENT_ESCROW_SCHEMA;
-  ui('funding-availability').textContent = stock ? 'Fund directly from stock Sapient. Refund details are saved in an encrypted wallet memo.' : 'Earlier immutable escrow. Stock Sapient deposits are supported by the latest accord above.';
   ui('privacy-note').textContent = stock
     ? 'Contribution amounts, the remaining counter and reviewer votes are public. The deposit uses one-time keys and omits the donor base wallet address. Wallet preparation and transaction history can link activity. Return memos are encrypted to the wallet and require a private view grant.' + (network === 'esmeralda' ? ' Four reviewers are deployer-operated test wallets.' : '')
     : 'Earlier private-output escrow: encrypted transfer values, with contribution sizes inferable from public total changes. Transaction links and timing remain visible. Four reviewers are deployer-operated test wallets.';
-  if (!stock) {
-    ui('funding-disclosure').textContent = 'This earlier escrow cannot accept stock Sapient deposits. Use the latest accord above.';
-    ui('funding-fee').hidden = true; ui('funding-view-note').hidden = true;
-  }
   const state = { ...fundingState({ targetUnits: stage.targetUnits, fundedUnits: deployment.recordedFundingUnits, paid: deployment.recordedPaid ?? false, epoch: deployment.recordedEpoch, deadline: stage.refundEpoch }), approvals: deployment.recordedApprovals, votes: deployment.recordedVotes,
     requiredReviewerApproved: deployment.recordedRequiredReviewerApproved || false, approved: deployment.recordedApproved ?? false, submissionHash: deployment.submissionHash };
   const card = { deployment, node, state, live: null };
@@ -208,13 +205,13 @@ for (const deployment of accords) {
   renderAccordCard(card, state);
   card.controls = wireFundingCard({ card, wallet, returns, notify,
     activity: delta => { activeActions += delta; },
+    openWallet: () => $('#wallet-dialog').showModal(),
     refresh: async () => { const fresh = await refreshEscrow(deployment); renderAccordCard(card, fresh, true); return fresh; },
   });
   card.controls.render();
   ui('fund-accord').addEventListener('click', () => {
     const panel = ui('funding-panel');
-    panel.hidden = !panel.hidden;
-    ui('fund-accord').setAttribute('aria-expanded', String(!panel.hidden));
+    setFundingPanel(card, panel.hidden);
     if (!panel.hidden) ui('contribution-amount').focus({ preventScroll: true });
   });
   ui('refresh-funding').addEventListener('click', event => action(event.currentTarget, async () => {
@@ -225,12 +222,11 @@ for (const deployment of accords) {
     if (await loadAccord(deployment)) showView('review');
   }));
   if (deployment.archivedOnReset) {
-    ui('funding-label').textContent = 'ARCHIVED';
+    ui('funding-label').textContent = 'Archived';
     ui('funding-note').textContent = 'Historical record from before the Esmeralda reset.';
     ui('explore-checkpoint').textContent = 'This contract is no longer on the current testnet. Its receipts remain available.';
     ui('fund-accord').disabled = true;
     ui('fund-accord').textContent = 'Archived';
-    ui('funding-availability').hidden = true;
     ui('refresh-funding').disabled = true;
     ui('explore-open-accord').disabled = true;
     ui('explore-open-accord').textContent = 'Archived after reset';
@@ -359,6 +355,8 @@ async function loadAccord(deployment = activeAccord) {
   submissionHash = hash;
   $('#review-work').value = '';
   $('#review-work-picker').hidden = false;
+  $('#review-work-picker').open = !hasWork;
+  $('#review-fee-settings').hidden = false;
   $('#review-stage').replaceChildren(...terms.milestones.map(s => new Option(s.title, s.id)));
   $('#review-stage-picker').hidden = terms.milestones.length === 1;
   $('#work-fingerprint').textContent = hasWork ? 'Work fingerprint: ' + hash : 'Choose the file shared by the creator. The app checks its fingerprint against the escrow.';
@@ -371,7 +369,6 @@ async function loadAccord(deployment = activeAccord) {
   $('#review-agreement-id').textContent = deployment.agreementId;
   $('#review-receipts').href = deployment.receiptsPath || './docs/private-escrow-testnet.md';
   $('#review-error').hidden = true;
-  $('#review-fee-note').textContent = 'Reviewer identities and votes are public. Approval authorizes a later payout to the fixed destination. Private transaction fees are required.';
   renderReviewTerms();
   syncReviewState();
   return true;
@@ -381,8 +378,7 @@ $('#review-fund').addEventListener('click', () => {
   const card = accordCards.get(activeAccord?.agreementId);
   if (!card) return;
   showView('explore', { focus: false });
-  card.node.querySelector('[data-ui="funding-panel"]').hidden = false;
-  card.node.querySelector('[data-ui="fund-accord"]').setAttribute('aria-expanded', 'true');
+  setFundingPanel(card, true);
   card.node.querySelector('[data-ui="contribution-amount"]').focus();
 });
 $('#download-demo-work').addEventListener('click', () => {
@@ -464,9 +460,11 @@ wallet.subscribe(state => {
   if (ownReviewVote && ownReviewVote.account !== state.account) ownReviewVote = null;
   if (!connected) { reviewerIdentity = null; $('#reviewer-wallet').value = ''; $('#reviewer-identity').hidden = true; }
   $('#wallet-open').textContent = connected ? 'Sapient connected' : state.status === 'restoring' ? 'Checking Sapient…' : state.status === 'connecting' ? 'Connecting…' : 'Connect Sapient';
+  $('#wallet-status').textContent = state.requestId ? 'A Sapient request needs your attention.' : state.error || (connected ? `Connected on ${chain.name}.` : `Connect Sapient on ${chain.name} to continue.`);
   $('#wallet-connect').hidden = connected;
   $('#wallet-disconnect').hidden = !connected;
   $('#wallet-resume').hidden = !state.requestId;
+  $('#wallet-install').hidden = connected;
   if (state.requestId !== failedReviewRequestId) {
     failedReviewRequestId = null;
     $('#failed-request-checked').checked = false;

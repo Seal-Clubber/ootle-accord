@@ -5,7 +5,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://ootle-indexer-a.tari.com https://indexer-a.ootle.tari.com; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="OotleAccord — community milestone agreements and Sapient review on Tari Esmeralda.">
+  <meta name="description" content="Community milestone funding and Sapient review on Tari Ootle.">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#101713">
   <title>OotleAccord</title>
@@ -16,49 +16,65 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="app-header">
-    <a href="#explore" class="brand"><img src="./brand/app-icon-v2.svg" width="30" height="30" alt=""><span>OotleAccord</span></a>
-    <div class="header-actions"><span class="network">Ootle Mainnet</span><button class="button button-outline" id="wallet-open">Connect Sapient</button></div>
+    <a href="#explore" class="brand"><img src="./brand/app-icon-v2.svg" width="30" height="30" alt=""><span>OotleAccord<small class="network">Ootle Mainnet</small></span></a>
+    <button class="button button-outline" id="wallet-open">Connect Sapient</button>
   </header>
   <div class="app-shell">
     <nav aria-label="Workspace"><button class="nav-item active" data-view="explore" aria-current="page">Accords</button><button class="nav-item" data-view="create">Create</button><button class="nav-item" data-view="review">Review</button></nav>
     <main id="main" tabindex="-1">
-      <p class="app-status">Ootle Mainnet · On-chain escrow · Public contribution amounts</p>
       <div id="app-update" class="update-notice" role="status" hidden><p>An app update is ready. Save any unsaved changes before updating.</p><button type="button" id="app-update-apply" class="button button-outline">Update app</button></div>
       <section class="view" id="view-explore" aria-labelledby="explore-title">
-        <div class="section-heading"><div><h1 id="explore-title">Accords</h1><p>Community funding on Ootle Mainnet.</p></div><button class="button button-primary" data-view="create">New accord</button></div>
+        <h1 id="explore-title">Accords</h1>
         <div id="accord-list"></div>
-        <section class="surface accord-card" id="mainnet-template" aria-labelledby="mainnet-template-title">
-          <h2 id="mainnet-template-title">OotleAccord escrow template</h2>
-          <p id="empty-accords">No mainnet accords are open for funding.</p>
-          <div class="card-actions"><a href="https://indexer-a.ootle.tari.com/templates/151ae04f4b80eda9a45d37f0ae8c2c8b005eb6df6715c2a9eb14df68b6e4bbf3" target="_blank" rel="noopener">Published template ↗</a><a href="https://indexer-a.ootle.tari.com/transactions/a9e8396052476dcad9d5e47fb02213a1e3eefd4cb77a919ffcbd6dd9095cb60d/result" target="_blank" rel="noopener">Mainnet receipt ↗</a></div>
-        </section>
-        <p><a id="switch-network" href="./?network=esmeralda#explore">Open Esmeralda testnet</a></p>
+        <p id="empty-accords">No mainnet accords are open for funding.</p>
+        <details class="network-details">
+          <summary>Network &amp; template</summary>
+          <div class="detail-links">
+            <a id="switch-network" href="./?network=esmeralda#explore">Open Esmeralda testnet</a>
+            <div id="mainnet-template" class="detail-links">
+              <a href="https://indexer-a.ootle.tari.com/templates/151ae04f4b80eda9a45d37f0ae8c2c8b005eb6df6715c2a9eb14df68b6e4bbf3" target="_blank" rel="noopener">Published template ↗</a>
+              <a href="https://indexer-a.ootle.tari.com/transactions/a9e8396052476dcad9d5e47fb02213a1e3eefd4cb77a919ffcbd6dd9095cb60d/result" target="_blank" rel="noopener">Template receipt ↗</a>
+            </div>
+          </div>
+        </details>
         <details id="earlier-accords"><summary>Earlier test accords</summary><div id="earlier-accord-list"></div></details>
         <template id="accord-card-template">
         <article class="surface accord-card">
-          <div class="section-heading"><span class="badge" data-ui="funding-label">PRIVATE ESCROW</span></div>
-          <h2 data-ui="deployed-title"></h2>
-          <div class="accord-stats"><div><span data-ui="funded-label">Locked in escrow</span><strong data-ui="funded-amount"></strong></div><div><span>Remaining</span><strong data-ui="remaining-amount"></strong></div></div>
+          <div class="accord-heading"><h2 data-ui="deployed-title"></h2><span class="accord-status" data-ui="funding-label"></span></div>
+          <div class="accord-stats"><div><span data-ui="funded-label">Funded</span><strong data-ui="funded-amount"></strong></div><div><span>Remaining</span><strong data-ui="remaining-amount"></strong></div></div>
           <progress data-ui="funding-progress" max="100" value="100" aria-label="Escrow funding progress"></progress>
           <p data-ui="funding-note" class="field-help"></p>
-          <div class="accord-stats"><div><span>Reviewers</span><strong data-ui="explore-reviewer-count"></strong></div><div><span>Approval threshold</span><strong data-ui="explore-threshold"></strong></div><div><span>Recorded votes</span><strong data-ui="explore-approvals"></strong></div></div>
-          <p data-ui="explore-checkpoint" class="field-help"></p>
-          <div class="card-actions"><button type="button" data-ui="fund-accord" class="button button-primary" aria-expanded="false">Fund this accord</button><button type="button" data-ui="explore-open-accord" class="button button-outline">Review work</button><button type="button" data-ui="refresh-funding" class="button button-outline">Refresh balance</button><a data-ui="receipts" href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div>
-          <p data-ui="funding-availability" class="field-help"></p>
+          <div class="card-actions"><button type="button" data-ui="fund-accord" class="button button-primary" aria-expanded="false">Fund this accord</button><button type="button" data-ui="explore-open-accord" class="button button-outline">View accord</button></div>
           <section data-ui="funding-panel" class="funding-panel" hidden>
-            <h3>Fund this accord</h3>
-            <p data-ui="funding-disclosure" class="field-help">Your contribution amount is public. The deposit uses one-time keys and leaves out your wallet address. Transaction history and timing can still link activity.</p>
-            <label data-ui="contribution-label">Contribution (tTARI)</label>
-            <div class="inline-actions"><input data-ui="contribution-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal"><button type="button" data-ui="funding-max" class="button button-outline">Max</button></div>
-            <p data-ui="contribution-limit" class="field-help"></p>
-            <p data-ui="funding-fee" class="field-help">Private fee: up to 0.1 tTARI per transaction. If needed, prepare an exact coin with a private transfer to yourself in Sapient, then approve the deposit separately.</p>
-            <p data-ui="funding-view-note" class="field-help">Checking coins requests access to your private coin amounts and memos. They stay in this tab’s memory. Your seed and wallet keys stay in Sapient.</p>
-            <div class="inline-actions"><button type="button" data-ui="funding-check" class="button button-outline">Check coins in Sapient</button><button type="button" data-ui="funding-prepare" class="button button-outline" hidden>Prepare exact coin in Sapient</button><button type="button" data-ui="funding-pay" class="button button-primary" disabled>Fund in Sapient</button></div>
+            <div data-ui="funding-amount-fields">
+              <label data-ui="contribution-label">Contribution (tTARI)</label>
+              <div class="amount-row"><input data-ui="contribution-amount" type="number" min="0.000001" step="0.000001" inputmode="decimal"><button type="button" data-ui="funding-max" class="button button-outline">Max</button></div>
+              <p data-ui="contribution-limit" class="field-help"></p>
+            </div>
+            <h3>Up to 3 Sapient approvals</h3>
+            <p class="field-help funding-intro" data-ui="funding-intro">Connect Sapient if prompted. The final approval sends your contribution.</p>
+            <ol class="funding-steps" aria-label="Funding steps">
+              <li data-ui="funding-step-access"><span class="step-number" aria-hidden="true">1</span><span>Allow balance access</span><small data-step-status></small></li>
+              <li data-ui="funding-step-prepare"><span class="step-number" aria-hidden="true">2</span><span>Prepare exact amount</span><small data-step-status>If needed</small></li>
+              <li data-ui="funding-step-deposit"><span class="step-number" aria-hidden="true">3</span><span>Approve deposit</span><small data-step-status></small></li>
+            </ol>
             <output data-ui="funding-status" class="form-output" role="status" aria-live="polite"></output>
+            <div class="funding-actions">
+              <button type="button" data-ui="funding-check" class="button button-primary">Check balance in Sapient</button>
+              <button type="button" data-ui="funding-prepare" class="button button-primary" hidden>Prepare in Sapient</button>
+              <button type="button" data-ui="funding-pay" class="button button-primary" hidden>Fund in Sapient</button>
+              <button type="button" data-ui="funding-confirm" class="button button-outline" hidden>Check confirmation</button>
+              <button type="button" data-ui="funding-again" class="button button-outline" hidden>Make another contribution</button>
+              <button type="button" data-ui="funding-recover" class="button button-outline" hidden>Open Sapient requests</button>
+            </div>
+            <details class="funding-privacy"><summary>Fees &amp; privacy</summary>
+              <p class="field-help">Contribution amounts are public. Deposits use one-time keys. Transaction history and timing can still link activity.</p>
+              <p data-ui="funding-fee" class="field-help"></p>
+              <p class="field-help">Balance access lets this tab read private coin amounts and memos. Your seed and keys stay in Sapient.</p>
+            </details>
           </section>
-          <details data-ui="returns-panel"><summary>My refunds &amp; payout</summary><p class="field-help">Find your encrypted return memo in Sapient. Eligible returns go to the wallet’s fixed private destination; the escrow pays the return fee.</p><button type="button" data-ui="returns-find" class="button button-outline">Find my memos in Sapient</button><div data-ui="returns-list"></div><button type="button" data-ui="returns-check" class="button button-outline" hidden>Check submitted return</button><output data-ui="returns-status" class="form-output" role="status" aria-live="polite"></output></details>
-          <p class="field-help">Refresh contacts the Tari indexer with this public contract ID. No wallet data is sent.</p>
-          <details><summary>Privacy &amp; contract details</summary><code data-ui="explore-component"></code><p data-ui="privacy-note" class="field-help"></p></details>
+          <details data-ui="returns-panel"><summary>My refunds &amp; payout</summary><p class="field-help">Find your encrypted return memo in Sapient. The escrow pays eligible return fees.</p><button type="button" data-ui="returns-find" class="button button-outline">Find my memos in Sapient</button><div data-ui="returns-list"></div><button type="button" data-ui="returns-check" class="button button-outline" hidden>Check submitted return</button><output data-ui="returns-status" class="form-output" role="status" aria-live="polite"></output></details>
+          <details><summary>Accord details</summary><p data-ui="explore-approvals"></p><p data-ui="explore-checkpoint" class="field-help"></p><div class="detail-links"><button type="button" data-ui="refresh-funding" class="text-button">Refresh balance</button><a data-ui="receipts" href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div><code data-ui="explore-component"></code><p data-ui="privacy-note" class="field-help"></p></details>
         </article>
         </template>
       </section>
@@ -83,13 +99,12 @@
             <div id="review-stage-picker" hidden><label for="review-stage">Milestone</label><select id="review-stage" required><option value="">Open an accord first</option></select></div>
             <output id="review-output" class="form-output"></output><button type="button" id="review-fund" class="button button-primary" hidden>Fund this accord</button><div id="review-terms"></div>
             <details id="demo-work-details" hidden><summary>Work to review</summary><pre id="demo-work-text"></pre><div class="inline-actions"><button type="button" id="download-demo-work" class="text-button">Download work</button></div></details>
-            <div id="review-work-picker" hidden><label for="review-work">Work file</label><input type="file" id="review-work"><p id="work-fingerprint" class="field-help"></p></div>
+            <details id="review-work-picker" hidden><summary>Choose a work file</summary><label for="review-work">Work file</label><input type="file" id="review-work"><p id="work-fingerprint" class="field-help"></p></details>
             <details hidden><summary>Creator: submit work</summary>
               <button type="button" id="submit-work" class="button button-outline">Submit work as creator</button>
               <p class="field-help">Files are hashed on this device. Only the fingerprint is submitted.</p>
             </details>
-            <label for="review-fee">Maximum fee (tTARI)</label><input id="review-fee" inputmode="decimal" value="0.1" required>
-            <p class="field-help" id="review-fee-note">Reviewer identities and votes are public. Private transaction fees are required.</p>
+            <details id="review-fee-settings" hidden><summary>Transaction fee</summary><label for="review-fee">Maximum fee (tTARI)</label><input id="review-fee" inputmode="decimal" value="0.1"><p class="field-help">Sapient pays the fee from your private balance. Reviewer identities and votes are public.</p></details>
             <button type="submit" id="approve-review" class="button button-primary" disabled>Approve in Sapient</button>
             <div id="review-error" class="review-error" role="alert" tabindex="-1" hidden><p>Wallet action could not complete</p><p id="review-error-message"></p><button type="button" id="copy-review-error" class="text-button">Copy error</button></div>
           </form>
@@ -101,6 +116,6 @@
     </main>
   </div>
   <div id="feedback" class="feedback" role="status" aria-live="polite" hidden></div>
-  <dialog id="wallet-dialog"><div class="section-heading"><h2>Sapient</h2><button type="button" id="wallet-close" class="text-button" aria-label="Close wallet panel">Close</button></div><p>Connect your Esmeralda wallet. Connecting does not approve a transaction or grant balance access.</p><div id="wallet-info" class="wallet-info">Not connected.</div><div class="inline-actions"><button type="button" id="wallet-connect" class="button button-primary">Connect Sapient</button><button type="button" id="wallet-disconnect" class="button button-outline" hidden>Disconnect</button><button type="button" id="wallet-resume" class="button button-outline" hidden>Resume request</button></div><p class="field-help">Only an unresolved request ID is kept in session storage.</p><a href="https://github.com/chironbuilds/tari-wallet" target="_blank" rel="noopener noreferrer">Get Sapient ↗</a></dialog>
+  <dialog id="wallet-dialog"><div class="section-heading"><h2>Sapient</h2><button type="button" id="wallet-close" class="text-button" aria-label="Close wallet panel">Close</button></div><p id="wallet-status" role="status">Connect Sapient to use your wallet.</p><div class="inline-actions"><button type="button" id="wallet-connect" class="button button-primary">Connect Sapient</button><button type="button" id="wallet-resume" class="button button-primary" hidden>Resume request</button><button type="button" id="wallet-disconnect" class="button button-outline" hidden>Disconnect</button></div><a id="wallet-install" href="https://github.com/chironbuilds/tari-wallet" target="_blank" rel="noopener noreferrer">Get Sapient ↗</a><details><summary>Wallet details</summary><div id="wallet-info" class="wallet-info"></div></details></dialog>
 </body>
 </html>
