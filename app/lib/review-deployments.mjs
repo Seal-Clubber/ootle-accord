@@ -41,3 +41,25 @@ export const REVIEW_DEPENDENCIES = Object.freeze({
     'resource_481aa520dd39e35015260bbff8d9134c6c3ed149f4101d15270360bc3e15c0ca',
   ]),
 }) });
+
+const verifiedMainnet = new Map();
+const mainnetDependencies = new Map();
+
+export function reviewComponent(network, agreementId, stageId) {
+  const key = `${agreementId}:${stageId}`;
+  return REVIEW_DEPLOYMENTS[network]?.[key] ?? (network === 'mainnet' ? verifiedMainnet.get(key) : undefined);
+}
+
+export function reviewDependencies(network, component) {
+  return REVIEW_DEPENDENCIES[network]?.[component] ?? (network === 'mainnet' ? mainnetDependencies.get(component) : undefined) ?? [];
+}
+
+// Only the mainnet receipt and component verifier should register an instance.
+export function registerVerifiedMainnet(deployment) {
+  const { agreement, agreementId, component, principalVault, feeVault } = deployment;
+  const stageId = agreement.milestones[0].id;
+  const known = reviewComponent('mainnet', agreementId, stageId);
+  if (known && known !== component) throw new Error('This agreement already points to a different escrow.');
+  verifiedMainnet.set(`${agreementId}:${stageId}`, component);
+  mainnetDependencies.set(component, Object.freeze([agreement.resourceAddress, principalVault, feeVault]));
+}

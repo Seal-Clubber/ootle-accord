@@ -44,7 +44,7 @@
           <div class="accord-stats"><div><span data-ui="funded-label">Funded</span><strong data-ui="funded-amount"></strong></div><div><span>Remaining</span><strong data-ui="remaining-amount"></strong></div></div>
           <progress data-ui="funding-progress" max="100" value="100" aria-label="Escrow funding progress"></progress>
           <p data-ui="funding-note" class="field-help"></p>
-          <div class="card-actions"><button type="button" data-ui="fund-accord" class="button button-primary" aria-expanded="false">Fund this accord</button><button type="button" data-ui="explore-open-accord" class="button button-outline">View accord</button></div>
+          <div class="card-actions"><button type="button" data-ui="fund-accord" class="button button-primary" aria-expanded="false">Fund this accord</button><a data-ui="accord-website" class="button button-outline" target="_blank" rel="noopener noreferrer" hidden>Open website ↗</a><button type="button" data-ui="explore-open-accord" class="button button-outline">View accord</button></div>
           <section data-ui="funding-panel" class="funding-panel" hidden>
             <div data-ui="funding-amount-fields">
               <label data-ui="contribution-label">Contribution (tTARI)</label>
@@ -73,22 +73,41 @@
               <p class="field-help">Balance access lets this tab read private coin amounts and memos. Your seed and keys stay in Sapient.</p>
             </details>
           </section>
+          <section class="accord-review">
+            <h3>Reviewers</h3>
+            <dl class="review-quorum">
+              <div><dt>Approval threshold</dt><dd><strong data-ui="accord-threshold"></strong><span data-ui="accord-required-count"></span></dd></div>
+              <div><dt>Approvals recorded</dt><dd><strong data-ui="accord-vote-count"></strong><span data-ui="accord-quorum-status"></span></dd></div>
+              <div><dt>Estimated time left</dt><dd><strong data-ui="accord-time-left"></strong><span data-ui="accord-deadline-epoch"></span></dd></div>
+            </dl>
+            <ul class="accord-reviewers" data-ui="accord-reviewers"></ul>
+          </section>
           <details data-ui="returns-panel"><summary>My refunds &amp; payout</summary><p class="field-help">Find your encrypted return memo in Sapient. The escrow pays eligible return fees.</p><button type="button" data-ui="returns-find" class="button button-outline">Find my memos in Sapient</button><div data-ui="returns-list"></div><button type="button" data-ui="returns-check" class="button button-outline" hidden>Check submitted return</button><output data-ui="returns-status" class="form-output" role="status" aria-live="polite"></output></details>
-          <details><summary>Accord details</summary><p data-ui="explore-approvals"></p><p data-ui="explore-checkpoint" class="field-help"></p><div class="detail-links"><button type="button" data-ui="refresh-funding" class="text-button">Refresh balance</button><a data-ui="receipts" href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div><code data-ui="explore-component"></code><p data-ui="privacy-note" class="field-help"></p></details>
+          <details><summary>Accord details</summary><p data-ui="explore-checkpoint" class="field-help"></p><div class="detail-links"><button type="button" data-ui="refresh-funding" class="text-button">Refresh balance</button><button type="button" data-ui="copy-accord-work-link" class="text-button" hidden>Copy accord link</button><a data-ui="receipts" href="./docs/private-escrow-testnet.md" target="_blank" rel="noopener">Receipts ↗</a></div><code data-ui="explore-component"></code><p data-ui="privacy-note" class="field-help"></p></details>
         </article>
         </template>
       </section>
       <section class="view" id="view-create" hidden aria-labelledby="create-title">
         <div class="section-heading"><div><h1 id="create-title">New accord</h1><p>Set the work, reviewers and approval threshold.</p></div></div>
         <form id="agreement-form" class="surface form-surface">
+          <details id="open-draft"><summary>Open a saved draft</summary><label for="draft-file">Agreement file</label><input id="draft-file" type="file" accept=".json,application/json"></details>
           <label for="campaign-title">Name</label><input id="campaign-title" required maxlength="100" placeholder="Community project">
           <label for="campaign-description">What are we funding?</label><textarea id="campaign-description" required maxlength="4000" rows="3" placeholder="Describe the goal."></textarea>
-          <label for="creator-address">Creator wallet</label><input id="creator-address" required placeholder="otl_esm_1…" autocomplete="off" spellcheck="false">
+          <label for="creator-address">Developer reward address</label><input id="creator-address" required placeholder="otl_esm_1…" autocomplete="off" spellcheck="false" aria-describedby="creator-address-help">
+          <p class="field-help" id="creator-address-help">This Sapient wallet submits the project link and receives the payout.</p>
+          <button type="button" id="use-creator-wallet" class="text-button">Use my Sapient address</button>
           <input id="resource-address" type="hidden">
           <div class="section-heading spaced"><h2>Milestones</h2><button type="button" id="add-stage" class="text-button">+ Add milestone</button></div>
           <div id="designer-stages"></div>
-          <p class="field-help">Export saves public terms only. It does not deploy or fund a contract. Deadlines use chain epochs.</p>
-          <button type="submit" class="button button-primary">Save agreement</button><output id="agreement-output" class="form-output"></output>
+          <p class="field-help" id="publish-help">Each accord accepts up to 16 contributions. Your connected Sapient wallet sets aside 1.6 public TARI for payout or refund fees and pays up to 0.1 TARI to publish. The developer can recover any unused reserve once the escrow is settled.</p>
+          <div class="card-actions">
+            <button type="submit" id="publish-accord" class="button button-primary">Publish in Sapient</button>
+            <button type="button" id="save-agreement" class="button button-outline">Download draft</button>
+            <button type="button" id="check-published" class="button button-outline" hidden>Check publication</button>
+            <button type="button" id="copy-published" class="button button-outline" hidden>Copy accord link</button>
+          </div>
+          <output id="agreement-output" class="form-output" role="status"></output>
+          <details id="recover-publication" hidden><summary>Find an existing publication</summary><label for="publish-tx-id">Transaction ID from Sapient</label><input id="publish-tx-id" maxlength="64" autocomplete="off" spellcheck="false"><button type="button" id="recover-published" class="button button-outline">Verify transaction</button></details>
         </form>
       </section>
       <section class="view" id="view-review" hidden aria-labelledby="review-title">
@@ -97,24 +116,33 @@
           <h2 id="review-heading">Choose an agreement</h2>
           <form id="review-form" hidden>
             <div id="review-stage-picker" hidden><label for="review-stage">Milestone</label><select id="review-stage" required><option value="">Open an accord first</option></select></div>
-            <output id="review-output" class="form-output" role="status"></output>
-            <div id="project-link-field">
-              <label for="project-link">Project link</label>
-              <input id="project-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="https://your-project.github.io/" aria-describedby="project-link-help">
-              <p id="project-link-help" class="field-help">Reviewers can verify the exact link. The page can still change after submission.</p>
+            <p id="review-submission-status" role="status"></p>
+            <p id="review-access-status" class="field-help" role="status" hidden></p>
+            <button type="button" id="review-connect" class="button button-outline" hidden>Check Sapient wallet</button>
+            <output id="review-output" class="form-output" role="status" hidden></output>
+            <dl id="review-quorum" class="review-quorum" hidden>
+              <div><dt>Approval threshold</dt><dd><strong id="review-threshold"></strong><span id="review-required-count"></span></dd></div>
+              <div><dt>Approvals recorded</dt><dd><strong id="review-vote-count"></strong><span id="review-required-vote"></span></dd></div>
+            </dl>
+            <details id="review-reviewers" hidden><summary>Reviewer list</summary><ol id="review-reviewer-list"></ol></details>
+            <div id="work-fields" hidden>
+              <label for="project-link">Website</label>
+              <input id="project-link" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="2048" placeholder="https://example.com/" aria-describedby="work-fields-help">
+              <label for="work-description">Work description</label>
+              <textarea id="work-description" rows="4" maxlength="1500" placeholder="Describe what you delivered." aria-describedby="work-fields-help"></textarea>
+              <p id="work-fields-help" class="field-help">Add a website, a description, or both. Your review link includes what you enter here.</p>
             </div>
             <p id="review-work-status" class="field-help" role="status" hidden></p>
+            <section id="submitted-work" hidden><h3>Submitted work</h3><p id="submitted-work-description"></p></section>
             <div class="card-actions">
-              <a id="open-project" class="button button-outline" target="_blank" rel="noopener noreferrer" hidden>Open project ↗</a>
+              <a id="open-project" class="button button-outline" target="_blank" rel="noopener noreferrer" hidden>Open website ↗</a>
               <button type="button" id="submit-work" class="button button-primary" hidden>Submit work in Sapient</button>
               <button type="button" id="check-work-submission" class="button button-outline" hidden>Check submission</button>
               <button type="button" id="copy-review-link" class="button button-outline" hidden>Copy review link</button>
               <button type="button" id="approve-review" class="button button-primary" hidden>Approve in Sapient</button>
               <button type="button" id="review-fund" class="text-button" hidden>Fund this accord</button>
             </div>
-            <details id="demo-work-details" hidden><summary>Submitted file</summary><pre id="demo-work-text"></pre><button type="button" id="download-demo-work" class="text-button">Download file</button></details>
-            <details id="review-options"><summary>More options</summary>
-              <label for="review-work">Use a work file instead</label><input type="file" id="review-work">
+            <details id="review-options" hidden><summary>More options</summary>
               <label for="review-fee">Maximum fee (tTARI)</label><input id="review-fee" inputmode="decimal" value="0.1">
               <div id="review-terms"></div>
             </details>

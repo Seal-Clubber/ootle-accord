@@ -21,12 +21,14 @@ Open **Community accord** on the network you want to use. Its verified remaining
 1. Open the accord, then **Fund this accord**.
 2. Choose an amount or **Max**, then **Check coins in Sapient**. This explicitly requests a private view grant to read coin amounts and memos; they stay in tab memory. Seeds, view secrets and wallet spending keys stay in Sapient.
 3. If necessary, approve **Prepare exact coin**, a private transfer to yourself within Sapient. Then approve **Fund in Sapient** separately. Each transaction has a private fee limit of 0.1 TARI on Mainnet or 0.1 tTARI on Esmeralda. The app redeems the exact contribution coin.
-4. After full funding, reviewers can approve the submitted work. Payout needs the percentage quorum and the mandatory reviewer.
+4. The developer can submit a website, a work description, or both and share the review link. After full funding, reviewers can approve the submitted work. The mandatory reviewer’s approval counts toward the percentage quorum and must be included.
 5. **My refunds & payout → Find my memos in Sapient** recovers return metadata from encrypted, zero-value native outputs. Eligible unpaid contributions become refundable after the deadline to fixed private wallet destinations. A separate organizer fee reserve pays return fees.
 
 There is no custom wallet build, funding relay or intermediate funding wallet in the app. The live demonstration used an isolated, agent-controlled account with the stock SDK; it does not substitute for a test of the installed Chrome extension. The app checks the actual provider capabilities and fails before spending if they are missing. The user still approves each wallet spend in Sapient.
 
-Pre-reset escrows remain under **Earlier test accords** as historical records, with separate work and receipts. Their wallet controls are disabled. **Create** exports public agreement terms for deployment by the organizer.
+On Mainnet, use **Create → Publish in Sapient** to publish one milestone and get a shareable accord link. The first reviewer is mandatory. The developer reward address submits work and receives the payout. The connected publishing wallet supplies the return reserve and network fee. **Download draft** saves the public terms for later.
+
+Pre-reset escrows remain under **Earlier test accords** as historical records, with separate work and receipts. Their wallet controls are disabled.
 
 ## Run and check
 

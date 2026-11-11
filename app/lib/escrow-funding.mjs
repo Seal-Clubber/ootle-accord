@@ -1,6 +1,6 @@
 import { ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA, rawUnits, toRawAmount, fromRawAmount, validateAgreement, requiredApprovals } from './accord.mjs';
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
-import { REVIEW_DEPLOYMENTS } from './review-deployments.mjs';
+import { reviewComponent } from './review-deployments.mjs';
 import { decodeSubstateResponse } from './chain-codec.mjs';
 import { networkConfig } from './networks.mjs';
 
@@ -65,7 +65,7 @@ function chainBytes(value, length) {
   if (typeof bytes !== 'string' || !/^[a-f0-9]+$/.test(bytes) || (length && bytes.length !== length * 2) || bytes.length > 1024) throw new Error('Malformed private return encoding.');
   return bytes;
 }
-function chainVault(value) {
+export function chainVault(value) {
   if (value?.['@cbor'] !== 'tag' || value.tag !== 132) throw new Error('Malformed escrow vault.');
   return 'vault_' + chainBytes(value.value,32);
 }
@@ -115,7 +115,7 @@ export async function refreshEscrow(deployment, fetcher = globalThis.fetch) {
   const stage = deployment.agreement.milestones[0];
   const expectedNetwork = deployment.agreement.network;
   const config = networkConfig(expectedNetwork);
-  if (REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${deployment.agreementId}:${stage.id}`] !== deployment.component) throw new Error('Escrow deployment is not verified.');
+  if (reviewComponent(expectedNetwork, deployment.agreementId, stage.id) !== deployment.component) throw new Error('Escrow deployment is not verified.');
   const options = { credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store', signal: AbortSignal.timeout(20000) };
   const responses = await Promise.all([fetcher(`${config.indexer}/network`, options), fetcher(`${config.indexer}/substates/${deployment.component}`, options)]);
   if (responses.some(r => !r.ok)) throw new Error(`Could not refresh the ${config.name} balance.`);

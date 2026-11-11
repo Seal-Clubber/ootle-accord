@@ -4,11 +4,12 @@
 import { QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA, NATIVE_TARI_RESOURCE, validateAgreement, agreementId, rawUnits } from './accord.mjs';
 import { cborReviewerIndex, cborSubmissionHash } from './review-args.mjs';
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
-import { REVIEW_DEPLOYMENTS, REVIEW_DEPENDENCIES } from './review-deployments.mjs';
+import { reviewComponent, reviewDependencies } from './review-deployments.mjs';
 import { fundingCoins, selectFundingCoins, assertLivePrivateCoin } from './stock-funding.mjs';
 import { makeFundingReturn, makeFundingArgs, restoreMemoReceipt } from './stock-client.mjs';
 import { refreshEscrow, canApproveEscrow } from './escrow-funding.mjs';
 import { decodeSubstateResponse } from './chain-codec.mjs';
+import { prepareMainnetEscrow } from './escrow-create.mjs';
 
 const UINT64_MAX = (1n << 64n) - 1n;
 const RESOURCE = /^resource_[a-f0-9]{64}$/i;
@@ -57,7 +58,7 @@ function validateFee(maxFee) {
 }
 
 function reviewInputs(network, component) {
-  return [component, ...(REVIEW_DEPENDENCIES[network]?.[component] ?? [])]
+  return [component, ...reviewDependencies(network, component)]
     .map(substate_id => ({ substate_id, version: null }));
 }
 
@@ -516,7 +517,7 @@ export function createSapientAdapter({
       if (terms.schema !== SAPIENT_ESCROW_SCHEMA || terms.milestones.length !== 1) throw new SapientError('This escrow does not support stock Sapient deposits.', 'UNSUPPORTED_FUNDING_PROTOCOL');
       const id = await agreementId(terms);
       const stage = terms.milestones[0];
-      if (id !== deployment.agreementId || REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stage.id}`] !== deployment.component) throw new SapientError('This escrow is not deployed and verified.', 'FUNDING_NOT_DEPLOYED');
+      if (id !== deployment.agreementId || reviewComponent(expectedNetwork, id, stage.id) !== deployment.component) throw new SapientError('This escrow is not deployed and verified.', 'FUNDING_NOT_DEPLOYED');
       positiveUnits(amount, 'Contribution'); validateFee(maxFee);
       rawUnits(expectedTotal, 'Funding counter', { allowZero: true });
       hex32(sourceCommitment, 'Contribution coin'); hex32(feeCommitment, 'Fee coin');
@@ -558,7 +559,7 @@ export function createSapientAdapter({
       if (busy || requestId) throw new SapientError('Finish the existing wallet request before reading return memos.', 'BUSY');
       const id = await agreementId(deployment?.agreement);
       const stage = deployment.agreement.milestones[0];
-      if (deployment.agreement.schema !== SAPIENT_ESCROW_SCHEMA || id !== deployment.agreementId || REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stage.id}`] !== deployment.component) throw new SapientError('This escrow is not verified.', 'FUNDING_NOT_DEPLOYED');
+      if (deployment.agreement.schema !== SAPIENT_ESCROW_SCHEMA || id !== deployment.agreementId || reviewComponent(expectedNetwork, id, stage.id) !== deployment.component) throw new SapientError('This escrow is not verified.', 'FUNDING_NOT_DEPLOYED');
       busy = true;
       try {
         const epoch = await connection(['privateBalanceView','walletAddress'], false);
@@ -615,6 +616,17 @@ export function createSapientAdapter({
       } catch (error) { throw fail(error); }
       finally { busy = false; }
     },
+    async createMainnetEscrow({ draft, requiredReviewer, onPrepared }, options) {
+      if (expectedNetwork !== 'mainnet') throw new SapientError('Switch the app to Mainnet to publish an accord.', 'WRONG_NETWORK');
+      const identity = await api.getReviewerIdentity();
+      const epoch = generation;
+      const { agreement, operation } = await prepareMainnetEscrow(draft, requiredReviewer, snapshot.account, identity.publicKey);
+      checkEpoch(epoch, options?.signal);
+      onPrepared(agreement);
+      return transact(operation, [], { ...options, expectedGeneration: epoch }, result => {
+        hex32(result.transactionId, 'Creation transaction');
+      });
+    },
     async approveMilestone({ agreement, deployment, stageId, submissionHash, maxFee } = {}, options) {
       const approvalGeneration = generation;
       const terms = validateAgreement(agreement);
@@ -624,7 +636,7 @@ export function createSapientAdapter({
       const hashArg = cborSubmissionHash(submissionHash);
       validateFee(maxFee);
       const id = await agreementId(terms);
-      const component = REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stageId}`];
+      const component = reviewComponent(expectedNetwork, id, stageId);
       if (!component) throw new SapientError('The wallet approval contract for this milestone has not been deployed and verified. No approval transaction was created.', 'REVIEW_NOT_DEPLOYED');
       const identity = await api.getReviewerIdentity();
       const index = stage.reviewers.findIndex(reviewer => reviewer.publicKey === identity.publicKey);
@@ -651,10 +663,10 @@ export function createSapientAdapter({
       validateFee(maxFee);
       if (!terms.milestones.some(stage => stage.id === stageId)) throw new SapientError('Choose a milestone from this agreement.', 'INVALID_STAGE');
       const id = await agreementId(terms);
-      const component = REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stageId}`];
+      const component = reviewComponent(expectedNetwork, id, stageId);
       if (!component) throw new SapientError('This milestone has no verified deployment. No transaction was created.', 'REVIEW_NOT_DEPLOYED');
       const identity = await api.getReviewerIdentity();
-      if (identity.publicKey !== reviewerKeyFromWallet(terms.creatorWalletAddress, expectedNetwork)) throw new SapientError('Connect the project creator’s wallet.', 'WRONG_CREATOR');
+      if (identity.publicKey !== reviewerKeyFromWallet(terms.creatorWalletAddress, expectedNetwork)) throw new SapientError('Connect the developer’s reward wallet to submit work.', 'WRONG_CREATOR');
       return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'submit_work', args: [hashArg] } }], inputs: reviewInputs(expectedNetwork, component), ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
     },
     /** Reveals the reviewer preimage to the wallet/indexer and on-chain during the claim. */

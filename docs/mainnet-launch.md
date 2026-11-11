@@ -4,7 +4,11 @@
 
 Mainnet publication makes the template available for instantiation. The app shows a funding action once a specific mainnet accord has been instantiated, verified and added to its public list.
 
-## Prepare the first accord
+## Publish an accord from the app
+
+On Mainnet, open **Create**, enter the milestone and the developer’s reward address, and list the reviewers in order. The first reviewer’s approval is required. Choose a deadline in local time and check the estimated epoch. **Publish in Sapient** uses the connected wallet for the reserve and fee. Once publication confirms, copy the accord link to share it.
+
+## Prepare an accord manually
 
 1. Open the app with `?network=mainnet#create`. Save a public agreement with one milestone, a native Ootle TARI goal, a future chain epoch and the creator’s and reviewers’ mainnet receiving addresses (`otl_1…`). The creator’s wallet is the fixed private payout recipient. Choose the approval percentage and the reviewer whose vote is mandatory.
 2. Run `node scripts/prepare-mainnet.mjs <public-draft.json> <required-reviewer-mainnet-address> [sponsor-mainnet-address]` and save the output. It contains the normalized public terms, agreement ID, constructor arguments and required `1600000` raw-unit fee reserve. Each run creates a fresh encrypted payout memo and agreement ID. If a sponsor signs the creation transaction, pass their address to authorize the receipt's one micro-TARI round trip. The memo and payout still go to the creator.
