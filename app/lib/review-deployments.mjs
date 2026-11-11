@@ -1,6 +1,11 @@
+import { MAINNET_ACCORDS } from './mainnet-accords.mjs';
+
 // Allowlisted after engine tests and committed template/component receipts.
 // Immutable component terms were compared with the full normalized public agreement.
-export const REVIEW_DEPLOYMENTS = Object.freeze({ esmeralda: Object.freeze({
+export const REVIEW_DEPLOYMENTS = Object.freeze({
+  mainnet: Object.freeze(Object.fromEntries(MAINNET_ACCORDS.map(deployment => [
+    `${deployment.agreementId}:${deployment.agreement.milestones[0].id}`, deployment.component,
+  ]))), esmeralda: Object.freeze({
   'd85ffba007a467d1fb5281c44ecd7df833ef999f404cbee37e243ee7977c0d80:delivery': 'component_dd022cc1e7e96ad8b27b3957e454af1ed4ee1fadaa1e6269f03d1c83b9206003',
   '3d2e19660a07385e212e86e80ff54e6e7d327105507b56e5ffe2763d57e1517d:delivery': 'component_1baffe14c156f3cea0aee845416827d72646b7285802a84ba2066d950d9d7fc1',
   'ddc24346d81fb625d1de38708725717edce8d66b6d783f92ba5d5ec599ba7872:delivery': 'component_5d2639cc01fdb9524a64da98b85bb8fd04a6c4979d0a8f6861aff3a3b8a7e3fc',
@@ -11,7 +16,10 @@ export const REVIEW_DEPLOYMENTS = Object.freeze({ esmeralda: Object.freeze({
 // Immutable public dependencies from the committed escrow constructor receipt.
 // Declare them before signing so the wallet need not discover them by retrying
 // a transaction whose private fee input might already have been consumed.
-export const REVIEW_DEPENDENCIES = Object.freeze({ esmeralda: Object.freeze({
+export const REVIEW_DEPENDENCIES = Object.freeze({
+  mainnet: Object.freeze(Object.fromEntries(MAINNET_ACCORDS.map(deployment => [
+    deployment.component, Object.freeze([deployment.agreement.resourceAddress, deployment.principalVault, deployment.feeVault]),
+  ]))), esmeralda: Object.freeze({
   'component_dd022cc1e7e96ad8b27b3957e454af1ed4ee1fadaa1e6269f03d1c83b9206003': Object.freeze([
     'resource_0101010101010101010101010101010101010101010101010101010101010101',
     'vault_dd9155a87d303fa5d7906c7f5bbb04dcaa98f7fefac89fc4043b09f39b3ae883',

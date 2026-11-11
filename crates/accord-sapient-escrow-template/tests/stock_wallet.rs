@@ -37,6 +37,7 @@ fn nonce(out: &PrivateOutput) -> RistrettoPublicKeyBytes {
 }
 fn receipt(out: &PrivateOutput) -> ReturnReceipt {
     ReturnReceipt {
+        network: out.network,
         value: out.value,
         owner: out.recipient_owner,
         view: out.recipient_view,
@@ -68,7 +69,7 @@ fn fixture() -> Fixture {
     let owner = RistrettoPublicKey::from_secret_key(&base).to_byte_type();
     let view = RistrettoSecretKey::random(&mut ::rand::rng());
     let view_pk = RistrettoPublicKey::from_secret_key(&view).to_byte_type();
-    let sources: Vec<_> = [7_000_000, 3_000_000, 4_000_000, 1]
+    let sources: Vec<_> = [7_000_000, 3_000_000, 4_000_000, 1, 9_999_999, 1]
         .into_iter()
         .map(|v| PrivateOutput::new(v, owner, view_pk, Some((&base, &view)), None))
         .collect();
@@ -241,6 +242,17 @@ fn stock_private_fee_deposits_enforce_real_total_cap_and_stale_max() {
     fund(&mut f, 1, 0, false);
     assert_eq!(status(&mut f).1, 7_000_000);
 }
+
+#[test]
+fn tiny_pledges_cannot_use_slots_but_can_complete_the_goal() {
+    let mut f = fixture();
+    fund(&mut f, 3, 0, false);
+    assert_eq!(status(&mut f), (GOAL, 0, GOAL, false));
+    fund(&mut f, 4, 0, true);
+    assert_eq!(status(&mut f), (GOAL, GOAL - 1, 1, false));
+    fund(&mut f, 5, GOAL - 1, true);
+    assert_eq!(status(&mut f), (GOAL, GOAL, 0, true));
+}
 #[test]
 fn full_goal_and_required_reviewer_gate_fixed_private_payout() {
     let mut f = fixture();
@@ -354,4 +366,24 @@ fn refund_requires_receipt_authority_fixed_destination_and_expiry_with_organizer
         .stealth_transfer(TARI_TOKEN, stolen)
         .build_and_seal(&relay);
     f.test.execute_expect_failure(tx, vec![]);
+}
+
+#[test]
+fn refund_can_use_an_external_fee_without_changing_the_fixed_return() {
+    let mut f = fixture();
+    fund(&mut f, 0, 0, true);
+    let refund = f.refunds[0].clone();
+    let proof = transfer(vec![], refund.value, &[refund.clone()], None);
+    let sig = return_signature(ootle_network::Network::LocalNet, f.escrow, Some(0), &proof, &refund.nonce);
+    let relay = RistrettoSecretKey::random(&mut ::rand::rng());
+    let make_refund = |test: &TemplateTest| test.transaction()
+        .call_method(f.escrow, "refund_with_external_fee", args![0u32, proof.clone(), sig.clone()])
+        .build_and_seal(&relay);
+    f.test.execute_expect_failure(make_refund(&f.test), vec![]);
+    f.test.set_virtual_substate(
+        VirtualSubstateId::CurrentEpoch,
+        VirtualSubstate::CurrentEpoch(100),
+    );
+    f.test.execute_expect_success(make_refund(&f.test), vec![]);
+    assert_eq!(status(&mut f), (GOAL, 0, 0, false));
 }

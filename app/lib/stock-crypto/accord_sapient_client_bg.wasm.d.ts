@@ -11,8 +11,8 @@ export const makeReturnNote: (a: number, b: number, c: number, d: number, e: num
 export const publicReturnBinding: (a: number, b: number, c: number) => void;
 export const restoreReturnReceipt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
 export const returnStatement: (a: number, b: number, c: number) => void;
-export const tari_free: (a: number) => void;
 export const tari_alloc: (a: number) => number;
+export const tari_free: (a: number) => void;
 export const __wbindgen_export: (a: number) => void;
 export const __wbindgen_add_to_stack_pointer: (a: number) => number;
 export const __wbindgen_export2: (a: number, b: number) => number;

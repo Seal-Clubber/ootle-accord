@@ -54,7 +54,7 @@ test('preview serves HTML/modules and plain-text docs under a restrictive local 
   const page = await read(port, '/');
   assert.equal(page.status, 200);
   assert.match(page.headers['content-type'], /^text\/html/);
-  assert.match(page.headers['content-security-policy'], /connect-src 'self' https:\/\/ootle-indexer-a\.tari\.com;/);
+  assert.match(page.headers['content-security-policy'], /connect-src 'self' https:\/\/ootle-indexer-a\.tari\.com https:\/\/indexer-a\.ootle\.tari\.com;/);
   assert.match(page.headers['content-security-policy'], /script-src 'self'/);
   assert.match(page.headers['content-security-policy'], /font-src 'self'/);
   assert.equal(page.headers['referrer-policy'], 'no-referrer');

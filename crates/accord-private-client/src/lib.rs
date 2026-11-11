@@ -16,6 +16,8 @@ use tari_template_lib_types::stealth::RevealedOutput;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PrivateOutput {
+    #[serde(default)]
+    pub network: Network,
     pub value: u64,
     pub mask: RistrettoSecretKey,
     pub nonce: RistrettoSecretKey,
@@ -32,18 +34,30 @@ impl PrivateOutput {
         owner_secret: Option<(&RistrettoSecretKey, &RistrettoSecretKey)>,
         script: Option<Hash32>,
     ) -> Self {
+        Self::new_on(Network::Esmeralda, value, owner, view, owner_secret, script)
+    }
+
+    pub fn new_on(
+        network: Network,
+        value: u64,
+        owner: RistrettoPublicKeyBytes,
+        view: RistrettoPublicKeyBytes,
+        owner_secret: Option<(&RistrettoSecretKey, &RistrettoSecretKey)>,
+        script: Option<Hash32>,
+    ) -> Self {
         let crypto = StealthCryptoApi::new();
         let nonce = RistrettoSecretKey::random(&mut ::rand::rng());
         let owner_pk = RistrettoPublicKey::convert_from_byte_type(&owner).unwrap();
         let one_time =
-            crypto.derive_stealth_owner_public_key(Network::Esmeralda, &owner_pk, &RistrettoPublicKey::convert_from_byte_type(&view).unwrap(), &nonce);
+            crypto.derive_stealth_owner_public_key(network, &owner_pk, &RistrettoPublicKey::convert_from_byte_type(&view).unwrap(), &nonce);
         let public_nonce = RistrettoPublicKey::from_secret_key(&nonce);
         let spend_secret = owner_secret
-            .map(|(sk, vk)| crypto.derive_stealth_owner_secret(Network::Esmeralda, sk, vk, &public_nonce));
+            .map(|(sk, vk)| crypto.derive_stealth_owner_secret(network, sk, vk, &public_nonce));
         if let Some(ref sk) = spend_secret {
             assert_eq!(RistrettoPublicKey::from_secret_key(sk), one_time);
         }
         Self {
+            network,
             value,
             mask: RistrettoSecretKey::random(&mut ::rand::rng()),
             nonce,
@@ -71,7 +85,7 @@ impl PrivateOutput {
             },
             auth: self.auth.clone(),
             tag: crypto.derive_stealth_output_tag(
-                Network::Esmeralda,
+                self.network,
                 &self.nonce,
                 &view,
                 &TARI_TOKEN,
@@ -139,13 +153,28 @@ pub fn transfer(
         .generate_transfer_statement(inputs, revealed, witnesses.iter(), reveal)
         .unwrap()
 }
+pub fn wallet_identity(address: &str) -> Result<(Network, RistrettoPublicKeyBytes, RistrettoPublicKeyBytes), &'static str> {
+    use bech32::{Bech32m, primitives::decode::CheckedHrpstring};
+    let decoded = CheckedHrpstring::new::<Bech32m>(address).map_err(|_| "Invalid wallet address checksum")?;
+    let network = match decoded.hrp().as_str() {
+        "otl_" => Network::MainNet,
+        "otl_esm_" => Network::Esmeralda,
+        _ => return Err("Unsupported wallet network"),
+    };
+    let bytes: Vec<_> = decoded.byte_iter().collect();
+    if bytes.len() != 64 { return Err("Use a base wallet address without a payment reference"); }
+    let owner = RistrettoPublicKeyBytes::from_bytes(&bytes[..32]).map_err(|_| "Invalid wallet signing key")?;
+    let view = RistrettoPublicKeyBytes::from_bytes(&bytes[32..]).map_err(|_| "Invalid wallet view key")?;
+    for key in [&owner, &view] {
+        if key.is_zero() || RistrettoPublicKey::convert_from_byte_type(key).is_err() {
+            return Err("Invalid wallet public key");
+        }
+    }
+    Ok((network, owner, view))
+}
+
 pub fn wallet_keys(address: &str) -> (RistrettoPublicKeyBytes, RistrettoPublicKeyBytes) {
-    let (hrp, bytes) = bech32::decode(address).expect("Invalid wallet address");
-    assert_eq!(hrp.as_str(), "otl_esm_");
-    assert_eq!(bytes.len(), 64);
-    let owner = RistrettoPublicKeyBytes::from_bytes(&bytes[..32]).unwrap();
-    let view = RistrettoPublicKeyBytes::from_bytes(&bytes[32..]).unwrap();
-    RistrettoPublicKey::convert_from_byte_type(&owner).unwrap();
-    RistrettoPublicKey::convert_from_byte_type(&view).unwrap();
+    let (network, owner, view) = wallet_identity(address).expect("Invalid wallet address");
+    assert_eq!(network, Network::Esmeralda);
     (owner, view)
 }

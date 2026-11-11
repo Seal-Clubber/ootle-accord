@@ -10,7 +10,7 @@ export const UINT64_MAX = (1n << 64n) - 1n;
 export const NATIVE_TARI_RESOURCE = `resource_${'01'.repeat(32)}`;
 const HEX32 = /^[a-f0-9]{64}$/i;
 const RESOURCE = /^resource_[a-f0-9]{64}$/i;
-const WALLET = /^otl_[a-z0-9]+_1[023456789acdefghjklmnpqrstuvwxyz]{20,}$/;
+const WALLET = /^otl_(?:[a-z0-9]+_)?1[023456789acdefghjklmnpqrstuvwxyz]{20,}$/;
 
 export class AccordError extends Error {
   constructor(message, code = 'INVALID_AGREEMENT') {
@@ -98,9 +98,9 @@ export function requiredApprovals(count, percent) {
   return Math.floor((count * percent + 99) / 100);
 }
 
-function normalizeReviewer(reviewer) {
+function normalizeReviewer(reviewer, network) {
   onlyKeys(reviewer, ['name', 'role', 'walletAddress', 'publicKey'], 'Reviewer');
-  const publicKey = reviewerKeyFromWallet(reviewer.walletAddress);
+  const publicKey = reviewerKeyFromWallet(reviewer.walletAddress, network);
   if (reviewer.publicKey !== undefined && reviewer.publicKey !== publicKey) throw new AccordError('Reviewer key does not match the wallet address.');
   return { name: text(reviewer.name, 'Reviewer name', 1, 100), role: text(reviewer.role ?? 'Independent reviewer', 'Reviewer role', 1, 160), walletAddress: reviewer.walletAddress, publicKey };
 }
@@ -112,12 +112,14 @@ export function validateAgreement(input) {
   const quorumReview = escrow || schema === QUORUM_AGREEMENT_SCHEMA;
   const walletReview = quorumReview || schema === WALLET_AGREEMENT_SCHEMA;
   if (![AGREEMENT_SCHEMA, WALLET_AGREEMENT_SCHEMA, QUORUM_AGREEMENT_SCHEMA, ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA].includes(schema)) throw new AccordError('Unsupported agreement version.');
-  if (input.network !== 'esmeralda') throw new AccordError('This prototype supports the Esmeralda testnet only.', 'WRONG_NETWORK');
+  if (input.network !== 'esmeralda' && !(input.network === 'mainnet' && (schema === QUORUM_AGREEMENT_SCHEMA || schema === SAPIENT_ESCROW_SCHEMA))) {
+    throw new AccordError('This agreement format does not support the selected Ootle network.', 'WRONG_NETWORK');
+  }
   if (typeof input.resourceAddress !== 'string' || !RESOURCE.test(input.resourceAddress)) throw new AccordError('Enter a valid resource address.');
   if (input.resourceAddress.toLowerCase() !== NATIVE_TARI_RESOURCE) throw new AccordError('Agreement v1 supports only native TARI with six decimal places.', 'UNSUPPORTED_RESOURCE');
   // This lexical check catches wrong address classes; Sapient validates the complete address and checksum.
   if (typeof input.creatorWalletAddress !== 'string' || !WALLET.test(input.creatorWalletAddress)) throw new AccordError('Enter an Ootle wallet address (otl_…), not an account component.');
-  if (quorumReview) reviewerKeyFromWallet(input.creatorWalletAddress);
+  if (quorumReview) reviewerKeyFromWallet(input.creatorWalletAddress, input.network);
   if (!Array.isArray(input.milestones) || input.milestones.length < 1 || input.milestones.length > 8) throw new AccordError('An agreement needs between one and eight milestones.');
   for (let index = 0; index < input.milestones.length; index++) {
     if (!Object.hasOwn(input.milestones, index)) throw new AccordError('Milestones cannot contain empty array slots.');
@@ -135,7 +137,7 @@ export function validateAgreement(input) {
       if (!Array.isArray(stage.reviewers)) throw new AccordError('Provide a reviewer list.');
       requiredApprovals(stage.reviewers.length, stage.approvalPercent);
       for (let i = 0; i < stage.reviewers.length; i++) if (!Object.hasOwn(stage.reviewers, i)) throw new AccordError('Reviewer list cannot contain empty slots.');
-      reviewers = stage.reviewers.map(normalizeReviewer);
+      reviewers = stage.reviewers.map(reviewer => normalizeReviewer(reviewer, input.network));
       if (new Set(reviewers.map(r => r.publicKey)).size !== reviewers.length) throw new AccordError('Each reviewer must have a distinct signing key.');
     }
     const hashLockHex = walletReview ? null : hex32(stage.hashLockHex, 'Reviewer hashlock');

@@ -145,6 +145,13 @@ mod sapient_escrow {
                 "Funding exceeds remaining capacity"
             );
             let value = amount.to_u64_checked().expect("Invalid contribution");
+            // Every nonfinal pledge consumes at least one sixteenth of the goal.
+            // Accept a smaller remainder so an exact final deposit always fits.
+            let minimum = self.target.div_ceil(MAX_PLEDGES as u64);
+            assert!(
+                value >= minimum || value == self.target - self.total,
+                "Contribution is below the minimum"
+            );
             valid_key(&refund_key);
             valid_key(&refund_nonce);
             assert!(
@@ -199,6 +206,15 @@ mod sapient_escrow {
         /// The organizer's separate fee vault pays directly.
         /// Put this call in fee instructions so action + fee commit together.
         pub fn claim(&mut self, transfer: StealthTransferStatement, signature: SignaturePayload) {
+            self.claim_with_external_fee(transfer, signature);
+            self.fees.pay_fee(Amount::from(ACTION_FEE));
+        }
+        /// Use a separately funded transaction if the sponsored fee is too low.
+        pub fn claim_with_external_fee(
+            &mut self,
+            transfer: StealthTransferStatement,
+            signature: SignaturePayload,
+        ) {
             self.assert_open();
             assert!(
                 !self.paid && self.total == self.target && self.is_approved(),
@@ -216,9 +232,18 @@ mod sapient_escrow {
             self.total = 0;
             self.paid = true;
             self.assert_balance();
-            self.fees.pay_fee(Amount::from(ACTION_FEE));
         }
         pub fn refund(
+            &mut self,
+            index: u32,
+            transfer: StealthTransferStatement,
+            signature: SignaturePayload,
+        ) {
+            self.refund_with_external_fee(index, transfer, signature);
+            self.fees.pay_fee(Amount::from(ACTION_FEE));
+        }
+        /// Use a separately funded transaction if the sponsored fee is too low.
+        pub fn refund_with_external_fee(
             &mut self,
             index: u32,
             transfer: StealthTransferStatement,
@@ -246,7 +271,6 @@ mod sapient_escrow {
             self.refunded[i] = true;
             self.total -= value;
             self.assert_balance();
-            self.fees.pay_fee(Amount::from(ACTION_FEE));
         }
         pub fn withdraw_unused_fees(&mut self) -> Bucket {
             CallerContext::assert_badge_in_scope(&NonFungibleAddress::from_public_key(self.creator));

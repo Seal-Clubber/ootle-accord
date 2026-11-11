@@ -1,0 +1,14 @@
+{
+  "ootleVersion": "0.53.1",
+  "templateLibVersion": "0.40.0",
+  "compiler": "rustc 1.98.1",
+  "optimizer": "Binaryen 132.0.0, optimizeLevel=2, shrinkLevel=2",
+  "bytes": 257492,
+  "sha256": "3e89a107b1da9ced1fb1f4a5e9efc77332f5ddc8bc18f25ba9d2c05eb3d44d7e",
+  "deploymentStatus": "published",
+  "network": "mainnet",
+  "templateAddress": "template_151ae04f4b80eda9a45d37f0ae8c2c8b005eb6df6715c2a9eb14df68b6e4bbf3",
+  "publicationTransactionId": "a9e8396052476dcad9d5e47fb02213a1e3eefd4cb77a919ffcbd6dd9095cb60d",
+  "publishedAt": "2026-11-11T05:26:28Z",
+  "publicationEpoch": 38434
+}

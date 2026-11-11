@@ -209,6 +209,7 @@ export function createSapientAdapter({
   // Older Sapient versions expose only the window event; newer versions expose both.
   const windowAccountsChanged = () => { if (!unsubscribeProvider) invalidateConnection(); };
   target?.addEventListener?.('tari#accountsChanged', windowAccountsChanged);
+  target?.addEventListener?.('tari#networkChanged', invalidateConnection);
 
   async function resolveProvider() {
     assertAlive();
@@ -492,7 +493,7 @@ export function createSapientAdapter({
       if (!snapshot.account) throw new SapientError('Connect Sapient first.', 'NOT_CONNECTED');
       const epoch = await connection(['privateSpend', 'walletAddress']);
       const address = await call('tari_getWalletAddress');
-      reviewerKeyFromWallet(address);
+      reviewerKeyFromWallet(address, expectedNetwork);
       checkEpoch(epoch, options?.signal);
       const result = await transact({ kind: 'sendPrivately', resourceAddress: NATIVE_TARI_RESOURCE,
         recipientWalletAddress: address, amount, maxFee, minimumValuePromise: '0',
@@ -523,6 +524,7 @@ export function createSapientAdapter({
       const state = await escrowReader(deployment);
       checkEpoch(operationGeneration, options?.signal);
       if (state.paid || state.expired || state.fundedUnits !== expectedTotal || BigInt(amount) > BigInt(state.remainingUnits) || BigInt(state.remainingUnits) === 0n) throw new SapientError('Funding changed or closed. Refresh the remaining amount before paying.', 'FUNDING_CHANGED');
+      if (state.minimumUnits && BigInt(amount) < BigInt(state.minimumUnits) && amount !== state.remainingUnits) throw new SapientError('Contribution is below the escrow minimum.', 'FUNDING_AMOUNT');
       const coins = await api.inspectFundingCoins();
       checkEpoch(operationGeneration, options?.signal);
       const selected = selectFundingCoins(coins, amount, maxFee);
@@ -531,9 +533,9 @@ export function createSapientAdapter({
       const fee = coins.find(c => c.commitment === feeCommitment);
       if (!selected.source || source?.amount !== amount || !fee || BigInt(fee.amount) <= BigInt(maxFee)) throw new SapientError(selected.reason || 'Selected private coins changed. Refresh before paying.', 'INVALID_FUNDING_COINS');
       const epoch = await connection(['stealthRedeemPrivateFee','walletAddress']);
-      const address = await call('tari_getWalletAddress'); reviewerKeyFromWallet(address);
+      const address = await call('tari_getWalletAddress'); reviewerKeyFromWallet(address, expectedNetwork);
       checkEpoch(epoch, options?.signal);
-      const note = await fundingCrypto.makeFundingReturn(address, amount);
+      const note = await fundingCrypto.makeFundingReturn(address, amount, expectedNetwork);
       const payload = await fundingCrypto.makeFundingArgs(note, expectedTotal, address, amount, id, source.publicKey);
       checkEpoch(epoch, options?.signal);
       const result = await transact({ kind: 'redeemStealthOutputWithPrivateFee', resourceAddress: NATIVE_TARI_RESOURCE,
@@ -568,7 +570,7 @@ export function createSapientAdapter({
           catch { /* Already known, foreign or unreadable: never submit a transaction. */ }
           checkEpoch(epoch);
         }
-        const address = await call('tari_getWalletAddress'); reviewerKeyFromWallet(address); checkEpoch(epoch);
+        const address = await call('tari_getWalletAddress'); reviewerKeyFromWallet(address, expectedNetwork); checkEpoch(epoch);
         const records = await call('tari_getShieldedOutputs', { resourceAddress: NATIVE_TARI_RESOURCE }); checkEpoch(epoch);
         if (!Array.isArray(records) || records.length > 512) throw new SapientError('Invalid private memo list.', 'INVALID_RESPONSE');
         const receipts = [];
@@ -609,7 +611,7 @@ export function createSapientAdapter({
         const epoch = await connection(['walletAddress'], false);
         const walletAddress = await call('tari_getWalletAddress');
         checkEpoch(epoch);
-        return Object.freeze({ walletAddress, publicKey: reviewerKeyFromWallet(walletAddress) });
+        return Object.freeze({ walletAddress, publicKey: reviewerKeyFromWallet(walletAddress, expectedNetwork) });
       } catch (error) { throw fail(error); }
       finally { busy = false; }
     },
@@ -652,7 +654,7 @@ export function createSapientAdapter({
       const component = REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${id}:${stageId}`];
       if (!component) throw new SapientError('This milestone has no verified deployment. No transaction was created.', 'REVIEW_NOT_DEPLOYED');
       const identity = await api.getReviewerIdentity();
-      if (identity.publicKey !== reviewerKeyFromWallet(terms.creatorWalletAddress)) throw new SapientError('Connect the project creator’s wallet.', 'WRONG_CREATOR');
+      if (identity.publicKey !== reviewerKeyFromWallet(terms.creatorWalletAddress, expectedNetwork)) throw new SapientError('Connect the project creator’s wallet.', 'WRONG_CREATOR');
       return transact({ kind: 'instructions', instructions: [{ CallMethod: { call: { Address: component }, method: 'submit_work', args: [hashArg] } }], inputs: reviewInputs(expectedNetwork, component), ...(maxFee === undefined ? {} : { maxFee }), feeType: 'private', enforceFeeType: true }, [], options);
     },
     /** Reveals the reviewer preimage to the wallet/indexer and on-chain during the claim. */
@@ -727,6 +729,7 @@ export function createSapientAdapter({
       generation += 1;
       unsubscribeProvider?.();
       target?.removeEventListener?.('tari#accountsChanged', windowAccountsChanged);
+      target?.removeEventListener?.('tari#networkChanged', invalidateConnection);
       listeners.clear();
       snapshot = Object.freeze({ ...snapshot, status: 'disposed', account: null, network: null, capabilities: null });
     },

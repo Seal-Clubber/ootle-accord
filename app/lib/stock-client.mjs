@@ -12,8 +12,8 @@ export function loadStockCrypto() {
   }
   return ready;
 }
-export async function makeFundingReturn(walletAddress, amount) {
-  reviewerKeyFromWallet(walletAddress);
+export async function makeFundingReturn(walletAddress, amount, network = 'esmeralda') {
+  reviewerKeyFromWallet(walletAddress, network);
   rawUnits(amount, 'Contribution');
   await loadStockCrypto();
   return JSON.parse(makeReturnNote(walletAddress, amount));
@@ -29,6 +29,7 @@ export async function restoreMemoReceipt(memo, address, agreementId) {
   return { ...restored, binding: JSON.parse(publicReturnBinding(JSON.stringify(restored.receipt))) };
 }
 export async function makePublicAction(deployment, state, receipt, refundIndex = null, dryRun = false) {
+  if ((receipt.network ?? 'esmeralda') !== deployment.agreement.network) throw new Error('This return receipt belongs to a different network.');
   await loadStockCrypto();
   const expected = refundIndex === null ? state.payoutBinding : state.refundBindings[refundIndex];
   const actual = JSON.parse(publicReturnBinding(JSON.stringify(receipt)));

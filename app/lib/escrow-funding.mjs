@@ -2,8 +2,8 @@ import { ESCROW_AGREEMENT_SCHEMA, SAPIENT_ESCROW_SCHEMA, rawUnits, toRawAmount, 
 import { reviewerKeyFromWallet } from './wallet-address.mjs';
 import { REVIEW_DEPLOYMENTS } from './review-deployments.mjs';
 import { decodeSubstateResponse } from './chain-codec.mjs';
+import { networkConfig } from './networks.mjs';
 
-const INDEXER = 'https://ootle-indexer-a.tari.com';
 const uint = value => {
   if (typeof value === 'number' && (!Number.isSafeInteger(value) || value < 0)) throw new Error('Indexer returned an unsafe integer.');
   return rawUnits(typeof value === 'number' ? String(value) : value, 'Chain value', { allowZero: true });
@@ -19,9 +19,13 @@ export function fundingState({ targetUnits, fundedUnits, paid = false, epoch, de
 }
 
 /** Max is the exact remaining campaign capacity; fees and wallet affordability are separate. */
-export function contributionAmount(value, state) {
+export function contributionAmount(value, state, network = 'esmeralda') {
   const amount = toRawAmount(value);
-  if (state.paid || state.expired || BigInt(amount) > BigInt(state.remainingUnits)) throw new Error(`Maximum contribution is ${fromRawAmount(state.remainingUnits)} tTARI.`);
+  const unit = networkConfig(network).unit;
+  if (state.paid || state.expired || BigInt(amount) > BigInt(state.remainingUnits)) throw new Error(`Maximum contribution is ${fromRawAmount(state.remainingUnits)} ${unit}.`);
+  if (state.minimumUnits && BigInt(amount) < BigInt(state.minimumUnits) && amount !== state.remainingUnits) {
+    throw new Error(`Minimum contribution is ${fromRawAmount(state.minimumUnits)} ${unit}.`);
+  }
   return amount;
 }
 
@@ -69,13 +73,15 @@ export function parseStockEscrowSubstate(response, deployment, epoch) {
   const agreement = validateAgreement(deployment.agreement);
   const stage = agreement.milestones[0];
   const component = response?.state?.up?.substate?.Component;
+  const templateHash = component?.header?.template_address?.replace(/^template_/, '');
   const s = component?.body?.state;
   const requiredIndex = stage.reviewers.findIndex(r => r.publicKey === stage.requiredReviewerPublicKey);
   if (agreement.schema !== SAPIENT_ESCROW_SCHEMA || agreement.milestones.length !== 1 || response.verified !== true ||
       !Number.isSafeInteger(response.version) || response.version < (deployment.recordedVersion ?? 0) ||
-      component?.header?.template_address !== deployment.templateAddress || component.header.owner_rule !== 'None' ||
-      (deployment.immutableUpgradeRule && component.header.upgrade_rule !== 'Locked') ||
-      !Array.isArray(s) || s.length !== 22 || s[0] !== deployment.agreementId || s[1] !== stage.id || key(s[2]) !== reviewerKeyFromWallet(agreement.creatorWalletAddress) ||
+      !/^[a-f0-9]{64}$/.test(templateHash) || templateHash !== deployment.templateAddress?.replace(/^template_/, '') ||
+      component.header.owner_rule !== 'None' ||
+      ((agreement.network === 'mainnet' || deployment.immutableUpgradeRule) && component.header.upgrade_rule !== 'Locked') ||
+      !Array.isArray(s) || s.length !== 22 || s[0] !== deployment.agreementId || s[1] !== stage.id || key(s[2]) !== reviewerKeyFromWallet(agreement.creatorWalletAddress, agreement.network) ||
       key(s[3]) !== stage.payoutPublicKey || key(s[4]) !== stage.payoutNonce ||
       !Array.isArray(s[5]) || s[5].length !== stage.reviewers.length || s[5].some((k,i) => key(k) !== stage.reviewers[i].publicKey) ||
       s[6] !== stage.approvalPercent || s[7] !== requiredIndex || uint(s[8]) !== stage.targetUnits || uint(s[9]) !== stage.refundEpoch ||
@@ -97,6 +103,7 @@ export function parseStockEscrowSubstate(response, deployment, epoch) {
   const state = fundingState({ targetUnits: stage.targetUnits, fundedUnits: funded, paid: s[19], epoch: uint(epoch), deadline: stage.refundEpoch });
   const approvals = s[12].filter(Boolean).length;
   return Object.freeze({ ...state, remainingUnits: keys.length >= 16 ? '0' : state.remainingUnits,
+    ...(agreement.network === 'mainnet' ? { minimumUnits: ((BigInt(stage.targetUnits) + 15n) / 16n).toString() } : {}),
     version: response.version, epoch: uint(epoch), approvals, votes: Object.freeze([...s[12]]), requiredReviewerApproved: s[12][requiredIndex],
     approved: approvals >= requiredApprovals(stage.reviewers.length, stage.approvalPercent) && s[12][requiredIndex], submissionHash: s[11],
     payoutBinding, refundBindings: Object.freeze(refundBindings), refunded: Object.freeze([...refunded]), principalVault, feeVault,
@@ -106,11 +113,13 @@ export function parseStockEscrowSubstate(response, deployment, epoch) {
 /** Public-chain refresh only. No address, balance, or transaction data is read from Sapient. */
 export async function refreshEscrow(deployment, fetcher = globalThis.fetch) {
   const stage = deployment.agreement.milestones[0];
-  if (REVIEW_DEPLOYMENTS.esmeralda?.[`${deployment.agreementId}:${stage.id}`] !== deployment.component) throw new Error('Escrow deployment is not verified.');
+  const expectedNetwork = deployment.agreement.network;
+  const config = networkConfig(expectedNetwork);
+  if (REVIEW_DEPLOYMENTS[expectedNetwork]?.[`${deployment.agreementId}:${stage.id}`] !== deployment.component) throw new Error('Escrow deployment is not verified.');
   const options = { credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'no-store', signal: AbortSignal.timeout(20000) };
-  const responses = await Promise.all([fetcher(`${INDEXER}/network`, options), fetcher(`${INDEXER}/substates/${deployment.component}`, options)]);
-  if (responses.some(r => !r.ok)) throw new Error('Could not refresh the Esmeralda balance.');
+  const responses = await Promise.all([fetcher(`${config.indexer}/network`, options), fetcher(`${config.indexer}/substates/${deployment.component}`, options)]);
+  if (responses.some(r => !r.ok)) throw new Error(`Could not refresh the ${config.name} balance.`);
   const [network, substate] = await Promise.all(responses.map(r => r.json()));
-  if (network.network !== 'esmeralda' || network.network_byte !== 38) throw new Error('Indexer is on the wrong network.');
+  if (network.network !== expectedNetwork || network.network_byte !== config.byte) throw new Error('Indexer is on the wrong network.');
   return Object.freeze({ ...parseEscrowSubstate(await decodeSubstateResponse(substate), deployment, network.epoch), checkedAt: Date.now() });
 }

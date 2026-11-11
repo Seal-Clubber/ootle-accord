@@ -35,8 +35,8 @@ export interface InitOutput {
     readonly publicReturnBinding: (a: number, b: number, c: number) => void;
     readonly restoreReturnReceipt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => void;
     readonly returnStatement: (a: number, b: number, c: number) => void;
-    readonly tari_free: (a: number) => void;
     readonly tari_alloc: (a: number) => number;
+    readonly tari_free: (a: number) => void;
     readonly __wbindgen_export: (a: number) => void;
     readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
     readonly __wbindgen_export2: (a: number, b: number) => number;

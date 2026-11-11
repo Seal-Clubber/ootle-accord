@@ -1,3 +1,4 @@
+import { networkConfig } from './networks.mjs';
 import { SAPIENT_ESCROW_SCHEMA, fromRawAmount } from './accord.mjs';
 import { contributionAmount } from './escrow-funding.mjs';
 import { selectFundingCoins } from './stock-funding.mjs';
@@ -8,6 +9,8 @@ const working = state => ['connecting','awaiting-approval','submitting','confirm
 /** Private coin summaries and decrypted receipts live only in this closure. */
 export function wireFundingCard({ card, wallet, returns, refresh, notify, activity }) {
   const { node, deployment } = card;
+  const network = deployment.agreement.network;
+  const unit = networkConfig(network).unit;
   const ui = name => node.querySelector(`[data-ui="${name}"]`);
   const stock = deployment.agreement.schema === SAPIENT_ESCROW_SCHEMA;
   let quote = null, busy = false, account = wallet.getState().account;
@@ -15,7 +18,7 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
   const message = (text, error = false, area = 'funding-status') => {
     ui(area).textContent = text; ui(area).classList.toggle('error-text', error);
   };
-  const amount = () => contributionAmount(ui('contribution-amount').value.trim(), card.state);
+  const amount = () => contributionAmount(ui('contribution-amount').value.trim(), card.state, network);
   const pendingForCard = () => returns?.getPending()?.component === deployment.component;
   function update() {
     const state = card.state, session = wallet.getState();
@@ -54,15 +57,15 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
     const selected = selectFundingCoins(coins, value, FEE);
     if (!selected.source) {
       ui('funding-prepare').hidden = coins.some(c => BigInt(c.amount) > BigInt(value) + BigInt(FEE)) ? false : true;
-      ui('funding-prepare').textContent = 'Prepare ' + fromRawAmount(value) + ' tTARI in Sapient';
+      ui('funding-prepare').textContent = 'Prepare ' + fromRawAmount(value) + ` ${unit} in Sapient`;
       message(selected.reason); return;
     }
     quote = { ...selected, amount: value, expectedTotal: card.state.fundedUnits, account: wallet.getState().account };
-    message('Ready to fund ' + fromRawAmount(value) + ' tTARI. Sapient will ask you to approve the deposit.');
+    message('Ready to fund ' + fromRawAmount(value) + ` ${unit}. Sapient will ask you to approve the deposit.`);
   }
   ui('funding-check').addEventListener('click', () => run(inspect));
   ui('contribution-amount').addEventListener('input', () => { clearQuote(); message('Check coins after choosing your amount.'); });
-  ui('funding-max').addEventListener('click', () => { ui('contribution-amount').value = fromRawAmount(card.state.remainingUnits); clearQuote(); message('Check coins to fund the remaining ' + fromRawAmount(card.state.remainingUnits) + ' tTARI.'); });
+  ui('funding-max').addEventListener('click', () => { ui('contribution-amount').value = fromRawAmount(card.state.remainingUnits); clearQuote(); message('Check coins to fund the remaining ' + fromRawAmount(card.state.remainingUnits) + ` ${unit}.`); });
   ui('funding-prepare').addEventListener('click', () => run(async () => {
     const value = amount(); clearQuote(); await connected();
     message('Approve the private transfer to yourself in Sapient. This prepares the exact contribution; it does not fund the accord yet.');
@@ -82,7 +85,7 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
       await refresh();
       if (!card.live.receiptCommitments?.includes(result.receiptCommitment)) throw new Error('not yet indexed');
       message('Contribution confirmed. Your encrypted refund memo is recoverable in Sapient.');
-      notify('Funded ' + fromRawAmount(approved.amount) + ' tTARI. The escrow balance is confirmed.');
+      notify('Funded ' + fromRawAmount(approved.amount) + ` ${unit}. The escrow balance is confirmed.`);
     } catch { message('Sapient reports submission: ' + result.transactionId + '. Confirmation is still pending. Refresh the balance; do not submit this contribution again.'); }
   }));
   async function returnResult(result) {
@@ -99,7 +102,7 @@ export function wireFundingCard({ card, wallet, returns, refresh, notify, activi
       const payout = receipt.index === null;
       const eligible = !state.paid && (payout ? state.fullyFunded && state.approved && !state.expired : state.expired && state.refunded[receipt.index] === false);
       const row = document.createElement('div'); row.className = 'return-row';
-      const label = document.createElement('p'); label.textContent = fromRawAmount(receipt.binding.value) + ' tTARI · ' + (payout ? 'Creator payout' : 'Your contribution');
+      const label = document.createElement('p'); label.textContent = fromRawAmount(receipt.binding.value) + ` ${unit} · ` + (payout ? 'Creator payout' : 'Your contribution');
       const button = document.createElement('button'); button.type = 'button'; button.className = 'button button-outline';
       button.textContent = payout ? state.paid ? 'Payout completed' : 'Receive payout in Sapient' : state.refunded[receipt.index] || state.paid ? 'Contribution resolved' : 'Refund to Sapient';
       button.dataset.eligible = String(eligible);

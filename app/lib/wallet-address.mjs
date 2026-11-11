@@ -1,14 +1,16 @@
 // Ootle Bech32m layout: owner key (32 bytes), view public key (32 bytes), optional pay reference.
-// Primary format: tari-project/tari-ootle v0.47.0 crates/ootle_address/src/{hrp,ootle_address}.rs.
+// Primary format: Tari's ootle_address crate.
+import { networkConfig } from './networks.mjs';
 const ALPHABET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
 const GENERATORS = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
 
 /** Validate address encoding and network; signing-key curve validity is enforced by Tari. */
-export function reviewerKeyFromWallet(address) {
-  if (typeof address !== 'string' || address.length > 240 || address !== address.toLowerCase()) throw new Error('Use a lowercase Sapient Esmeralda wallet address.');
+export function reviewerKeyFromWallet(address, network = 'esmeralda') {
+  const config = networkConfig(network);
+  if (typeof address !== 'string' || address.length > 240 || address !== address.toLowerCase()) throw new Error(`Use a lowercase Sapient ${config.name} wallet address.`);
   const separator = address.lastIndexOf('1');
   const hrp = address.slice(0, separator);
-  if (hrp !== 'otl_esm_') throw new Error('The reviewer wallet must be on Esmeralda (otl_esm_1…).');
+  if (hrp !== config.walletPrefix) throw new Error(`The wallet must be on ${config.name} (${config.walletPrefix}1…).`);
   const words = [...address.slice(separator + 1)].map(char => ALPHABET.indexOf(char));
   if (words.length < 6 || words.some(word => word < 0)) throw new Error('Invalid wallet address encoding.');
   const expanded = [...hrp].map(char => char.charCodeAt(0) >> 5).concat(0, [...hrp].map(char => char.charCodeAt(0) & 31));

@@ -1,6 +1,7 @@
 //! Browser proof preparation. Only public wallet keys and private return metadata
 //! are handled here; never a Sapient seed, view secret, or input spending key.
-use accord_private_client::{PrivateOutput, transfer, wallet_keys};
+use accord_private_client::{PrivateOutput, transfer, wallet_identity};
+use ootle_network::Network;
 use ootle_byte_type::{ConvertFromByteType, ToByteType};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -62,6 +63,8 @@ mod decimal {
 }
 #[derive(Serialize, Deserialize)]
 pub struct ReturnReceipt {
+    #[serde(default)]
+    pub network: Network,
     #[serde(with = "decimal")]
     pub value: u64,
     pub owner: RistrettoPublicKeyBytes,
@@ -77,7 +80,11 @@ fn literal<T: tari_bor::Encode<()>>(v: &T) -> serde_json::Value {
 fn parse_receipt(json: &str) -> Result<ReturnReceipt, JsError> {
     let note: ReturnReceipt =
         serde_json::from_str(json).map_err(|e| JsError::new(&e.to_string()))?;
-    if note.value == 0
+    if !matches!(note.network, Network::MainNet | Network::Esmeralda)
+        || note.owner.is_zero() || note.view.is_zero()
+        || RistrettoPublicKey::convert_from_byte_type(&note.owner).is_err()
+        || RistrettoPublicKey::convert_from_byte_type(&note.view).is_err()
+        || note.value == 0
         || RistrettoPublicKey::from_secret_key(&note.nonce)
             .to_byte_type()
             .is_zero()
@@ -89,7 +96,7 @@ fn parse_receipt(json: &str) -> Result<ReturnReceipt, JsError> {
 pub fn binding(receipt: &ReturnReceipt) -> (RistrettoPublicKeyBytes, RistrettoPublicKeyBytes) {
     let owner = RistrettoPublicKey::convert_from_byte_type(&receipt.owner).unwrap();
     let key = StealthCryptoApi::new()
-        .derive_stealth_owner_public_key(ootle_network::Network::Esmeralda, &owner, &RistrettoPublicKey::convert_from_byte_type(&receipt.view).unwrap(), &receipt.nonce)
+        .derive_stealth_owner_public_key(receipt.network, &owner, &RistrettoPublicKey::convert_from_byte_type(&receipt.view).unwrap(), &receipt.nonce)
         .to_byte_type();
     (
         key,
@@ -97,7 +104,7 @@ pub fn binding(receipt: &ReturnReceipt) -> (RistrettoPublicKeyBytes, RistrettoPu
     )
 }
 pub fn destination(receipt: &ReturnReceipt) -> PrivateOutput {
-    let mut out = PrivateOutput::new(receipt.value, receipt.owner, receipt.view, None, None);
+    let mut out = PrivateOutput::new_on(receipt.network, receipt.value, receipt.owner, receipt.view, None, None);
     out.nonce = receipt.nonce.clone();
     out.auth = SpendAuthorization::Key(binding(receipt).0);
     out
@@ -145,7 +152,7 @@ pub fn memo_statement(
         hex(receipt.nonce.as_bytes())
     );
     let memo = Memo::new_message(text).expect("Bounded receipt memo");
-    let note = PrivateOutput::new(0, receipt.owner, receipt.view, None, None);
+    let note = PrivateOutput::new_on(receipt.network, 0, receipt.owner, receipt.view, None, None);
     let api = StealthCryptoApi::new();
     let mut witness = note.witness();
     witness.witness.encrypted_data = api
@@ -173,8 +180,9 @@ pub fn make_return_note(address: &str, raw: &str) -> Result<String, JsError> {
     if value == 0 {
         return Err(JsError::new("Positive return amount required"));
     }
-    let (owner, view) = wallet_keys(address);
+    let (network, owner, view) = wallet_identity(address).map_err(JsError::new)?;
     let note = ReturnReceipt {
+        network,
         value,
         owner,
         view,
@@ -198,8 +206,8 @@ pub fn funding_args(
     receiver_key: &str,
 ) -> Result<String, JsError> {
     let n = parse_receipt(note_json)?;
-    let (owner, view) = wallet_keys(address);
-    if n.owner != owner || n.view != view || n.value.to_string() != amount {
+    let (network, owner, view) = wallet_identity(address).map_err(JsError::new)?;
+    if n.network != network || n.owner != owner || n.view != view || n.value.to_string() != amount {
         return Err(JsError::new(
             "Refund receipt does not match the connected wallet and contribution",
         ));
@@ -237,8 +245,9 @@ pub fn restore_return_receipt(
     let nonce: RistrettoSecretKey =
         serde_json::from_value(serde_json::Value::String(parts[5].into()))
             .map_err(|_| JsError::new("Invalid receipt nonce"))?;
-    let (owner, view) = wallet_keys(address);
+    let (network, owner, view) = wallet_identity(address).map_err(JsError::new)?;
     let receipt = ReturnReceipt {
+        network,
         value,
         owner,
         view,
@@ -269,7 +278,8 @@ pub fn constructor_args(note_json: &str, config_json: &str) -> Result<String, Js
         .as_str()
         .and_then(|s| s.parse::<u64>().ok())
         .ok_or_else(|| JsError::new("Invalid deadline"))?;
-    if target != note.value || creator != note.owner {
+    if c["network"].as_str().unwrap_or("esmeralda") != note.network.as_key_str()
+        || target != note.value || creator != note.owner {
         return Err(JsError::new(
             "Payout receipt does not match creator and goal",
         ));
@@ -301,11 +311,11 @@ pub fn action_transaction(
         VaultId::from_str(principal_vault).map_err(|_| JsError::new("Invalid principal vault"))?;
     let fees = VaultId::from_str(fee_vault).map_err(|_| JsError::new("Invalid fee vault"))?;
     let proof = statement(&note);
-    let sig = return_signature(ootle_network::Network::Esmeralda, c, refund_index, &proof, &note.nonce);
+    let sig = return_signature(note.network, c, refund_index, &proof, &note.nonce);
     let return_commitment = proof.outputs_statement.outputs[0].output.commitment;
     // A throwaway transaction sealer, not a wallet or a key controlling funds.
     let sealer = RistrettoSecretKey::random(&mut ::rand::rng());
-    let tx = Transaction::builder(38u8, Epoch::from(epoch))
+    let tx = Transaction::builder(note.network.as_byte(), Epoch::from(epoch))
         .with_fee_instructions_builder(|b| {
             if let Some(i) = refund_index {
                 b.call_method(c, "refund", args![i, proof, sig])
